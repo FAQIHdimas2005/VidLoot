@@ -25,7 +25,7 @@ export default function Navbar() {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
-                Unduh<span className="text-blue-500">Cepat</span>
+                Vid<span className="text-blue-500">Loot</span>
               </span>
               <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold flex items-center gap-1">
                 Universal Downloader

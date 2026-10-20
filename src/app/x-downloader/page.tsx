@@ -5,7 +5,7 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "X & Twitter Video Downloader MP4 HD - UnduhCepat",
+  title: "X & Twitter Video Downloader MP4 HD - VidLoot",
   description:
     "Unduh video dan GIF dari X (Twitter) kualitas Full HD 1080p, 720p, dan MP3 secara instan dan gratis tanpa aplikasi.",
   keywords: [

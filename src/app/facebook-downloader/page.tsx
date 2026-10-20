@@ -5,7 +5,7 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Facebook Video & Reels Downloader - UnduhCepat",
+  title: "Facebook Video & Reels Downloader - VidLoot",
   description:
     "Download video Facebook publik, FB Watch, dan Facebook Reels dalam kualitas Full HD / SD secara gratis dan cepat.",
   keywords: [

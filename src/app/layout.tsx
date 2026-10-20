@@ -10,10 +10,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "UnduhCepat - Universal Social Media Video Downloader (TikTok, IG, X, FB, YT)",
+  title: "VidLoot - Universal Social Media Video Downloader (TikTok, IG, X, FB, YT)",
   description:
     "Download video TikTok tanpa watermark, Instagram Reels, X/Twitter video, Facebook video, dan YouTube Shorts gratis dalam format MP4 Full HD dan MP3.",
   keywords: [
+    "vidloot",
     "download video tiktok tanpa watermark",
     "unduh reels instagram",
     "download twitter video",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     "ssstiktok",
     "savefrom",
   ],
-  authors: [{ name: "UnduhCepat Team" }],
+  authors: [{ name: "VidLoot Team" }],
   robots: "index, follow",
 };
 

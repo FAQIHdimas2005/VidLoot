@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://unduhcepat.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vidloot.vercel.app';
   const lastModified = new Date();
 
   const routes = [

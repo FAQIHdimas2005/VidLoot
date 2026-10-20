@@ -5,7 +5,7 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "YouTube Shorts & Video Downloader MP4/MP3 - UnduhCepat",
+  title: "YouTube Shorts & Video Downloader MP4/MP3 - VidLoot",
   description:
     "Unduh video YouTube Shorts dan klip video online dalam format MP4 HD atau ekstrak audio MP3 secara gratis.",
   keywords: [

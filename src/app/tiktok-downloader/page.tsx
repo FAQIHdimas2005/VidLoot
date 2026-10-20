@@ -5,7 +5,7 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "TikTok Downloader Tanpa Watermark HD - UnduhCepat",
+  title: "TikTok Downloader Tanpa Watermark HD - VidLoot",
   description:
     "Download video TikTok tanpa watermark dan konversi audio TikTok MP3 kualitas jernih secara gratis dan cepat di semua perangkat.",
   keywords: [

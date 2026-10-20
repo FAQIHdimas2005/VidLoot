@@ -10,7 +10,7 @@ interface FaqItem {
 
 const faqs: FaqItem[] = [
   {
-    q: "Bagaimana cara download video dari media sosial menggunakan UnduhCepat?",
+    q: "Bagaimana cara download video dari media sosial menggunakan VidLoot?",
     a: "Caranya sangat mudah: 1) Salin (copy) link video dari aplikasi TikTok, Instagram, X/Twitter, Facebook, atau YouTube. 2) Tempel (paste) link ke kolom input di atas. 3) Klik tombol 'Download'. 4) Pilih kualitas video (MP4 HD) atau audio (MP3) yang kamu inginkan, dan file akan otomatis tersimpan ke perangkatmu.",
   },
   {
@@ -26,7 +26,7 @@ const faqs: FaqItem[] = [
     a: "Layanan ini 100% gratis selamanya tanpa perlu mendaftar akun atau memasukkan informasi kartu kredit apa pun.",
   },
   {
-    q: "Apakah UnduhCepat menyimpan salinan video yang saya unduh?",
+    q: "Apakah VidLoot menyimpan salinan video yang saya unduh?",
     a: "Tidak. Kami tidak menyimpan atau mengarsipkan video di server kami. Seluruh proses pengambilan data dilakukan secara langsung (live stream) dari server penyedia konten publik.",
   },
 ];
@@ -45,7 +45,7 @@ export default function FaqSection() {
           Pertanyaan yang Sering Diajukan (FAQ)
         </h2>
         <p className="text-xs text-slate-400 mt-2">
-          Semua yang perlu kamu ketahui tentang cara kerja dan keamanan UnduhCepat.
+          Semua yang perlu kamu ketahui tentang cara kerja dan keamanan VidLoot.
         </p>
       </div>
 

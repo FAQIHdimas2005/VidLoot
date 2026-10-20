@@ -5,7 +5,7 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Instagram Reels & Video Downloader HD - UnduhCepat",
+  title: "Instagram Reels & Video Downloader HD - VidLoot",
   description:
     "Cara mudah download Reels Instagram, IG Video, dan Story online gratis tanpa aplikasi. Simpan video IG kualitas tinggi langsung ke galeri HP.",
   keywords: [

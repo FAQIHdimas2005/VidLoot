@@ -2,8 +2,8 @@ import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Kebijakan Privasi (Privacy Policy) - UnduhCepat",
-  description: "Kebijakan privasi mengenai penggunaan data di situs UnduhCepat.",
+  title: "Kebijakan Privasi (Privacy Policy) - VidLoot",
+  description: "Kebijakan privasi mengenai penggunaan data di situs VidLoot.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -22,7 +22,7 @@ export default function PrivacyPolicyPage() {
 
         <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-4">
           <p>
-            Di <strong>UnduhCepat</strong>, privasi pengunjung kami adalah salah satu prioritas utama kami. Dokumen Kebijakan Privasi ini berisi jenis informasi yang dikumpulkan dan dicatat oleh situs kami serta bagaimana kami menggunakannya.
+            Di <strong>VidLoot</strong>, privasi pengunjung kami adalah salah satu prioritas utama kami. Dokumen Kebijakan Privasi ini berisi jenis informasi yang dikumpulkan dan dicatat oleh situs kami serta bagaimana kami menggunakannya.
           </p>
 
           <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Pengumpulan Data Pribadi</h2>

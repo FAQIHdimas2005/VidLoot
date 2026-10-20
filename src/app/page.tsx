@@ -15,7 +15,7 @@ export default function Home() {
     {
       num: "2",
       icon: <LinkIcon className="w-5 h-5 text-indigo-400" />,
-      title: "Tempel di UnduhCepat",
+      title: "Tempel di VidLoot",
       desc: "Paste link tersebut ke kolom formulir di atas, lalu tekan tombol 'Download'.",
     },
     {

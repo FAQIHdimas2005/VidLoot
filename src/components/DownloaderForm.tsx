@@ -270,7 +270,7 @@ export default function DownloaderForm({
                   const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(
                     media.url
                   )}&filename=${encodeURIComponent(
-                    `UnduhCepat_${result.platform}_${idx + 1}.${media.format}`
+                    `VidLoot_${result.platform}_${idx + 1}.${media.format}`
                   )}`;
 
                   const isAudio = media.format === "mp3";

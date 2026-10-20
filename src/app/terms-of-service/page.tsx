@@ -2,8 +2,8 @@ import { FileText } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Syarat & Ketentuan Layanan (Terms of Service) - UnduhCepat",
-  description: "Syarat dan ketentuan penggunaan situs dan layanan UnduhCepat.",
+  title: "Syarat & Ketentuan Layanan (Terms of Service) - VidLoot",
+  description: "Syarat dan ketentuan penggunaan situs dan layanan VidLoot.",
 };
 
 export default function TermsOfServicePage() {
@@ -22,7 +22,7 @@ export default function TermsOfServicePage() {
 
         <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-4">
           <p>
-            Selamat datang di <strong>UnduhCepat</strong>. Dengan mengakses dan menggunakan situs web ini, Anda setuju untuk terikat oleh Syarat dan Ketentuan berikut.
+            Selamat datang di <strong>VidLoot</strong>. Dengan mengakses dan menggunakan situs web ini, Anda setuju untuk terikat oleh Syarat dan Ketentuan berikut.
           </p>
 
           <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Penggunaan yang Diperbolehkan</h2>

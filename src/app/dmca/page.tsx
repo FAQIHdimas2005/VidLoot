@@ -2,8 +2,8 @@ import { ShieldAlert, Mail } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "DMCA & Disclaimer Hak Cipta - UnduhCepat",
-  description: "Kebijakan hak cipta dan prosedur pemberitahuan DMCA untuk layanan UnduhCepat.",
+  title: "DMCA & Disclaimer Hak Cipta - VidLoot",
+  description: "Kebijakan hak cipta dan prosedur pemberitahuan DMCA untuk layanan VidLoot.",
 };
 
 export default function DmcaPage() {
@@ -22,12 +22,12 @@ export default function DmcaPage() {
 
         <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-4">
           <p>
-            <strong>UnduhCepat</strong> menghormati hak kekayaan intelektual orang lain dan mematuhi Digital Millennium Copyright Act (DMCA).
+            <strong>VidLoot</strong> menghormati hak kekayaan intelektual orang lain dan mematuhi Digital Millennium Copyright Act (DMCA).
           </p>
 
           <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Pernyataan Kepemilikan Konten</h2>
           <p>
-            UnduhCepat adalah alat bantu teknis online yang memungkinkan pengguna mengunduh konten publik yang disediakan oleh platform pihak ketiga (seperti TikTok, Instagram, Twitter/X, Facebook, dan YouTube). Kami <strong>tidak meng-hosting, menyimpan, atau memiliki</strong> file media apa pun di server kami. Seluruh data dialirkan secara langsung (direct stream) dari server CDN resmi masing-masing platform.
+            VidLoot adalah alat bantu teknis online yang memungkinkan pengguna mengunduh konten publik yang disediakan oleh platform pihak ketiga (seperti TikTok, Instagram, Twitter/X, Facebook, dan YouTube). Kami <strong>tidak meng-hosting, menyimpan, atau memiliki</strong> file media apa pun di server kami. Seluruh data dialirkan secara langsung (direct stream) dari server CDN resmi masing-masing platform.
           </p>
 
           <h2 className="text-base sm:text-lg font-bold text-white pt-2">2. Penggunaan Pribadi</h2>
