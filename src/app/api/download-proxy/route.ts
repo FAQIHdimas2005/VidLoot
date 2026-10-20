@@ -19,10 +19,8 @@ export async function GET(req: NextRequest) {
     });
 
     if (!mediaResponse.ok) {
-      return NextResponse.json(
-        { error: `Gagal mengunduh stream media (Status: ${mediaResponse.status})` },
-        { status: 502 }
-      );
+      console.warn(`Stream response not ok (${mediaResponse.status}), redirecting directly to source...`);
+      return NextResponse.redirect(targetUrl);
     }
 
     const contentType =
