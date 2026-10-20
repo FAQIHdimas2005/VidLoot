@@ -5,15 +5,15 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "TikTok Downloader Tanpa Watermark HD - VidLoot",
+  title: "TikTok Video Downloader Without Watermark HD - VidLoot",
   description:
-    "Download video TikTok tanpa watermark dan konversi audio TikTok MP3 kualitas jernih secara gratis dan cepat di semua perangkat.",
+    "Download TikTok videos without watermark and convert TikTok audio to high-quality MP3 online for free on any device.",
   keywords: [
     "tiktok downloader",
-    "download video tiktok no watermark",
+    "download tiktok without watermark",
     "snaptik",
-    "ssstiktok",
-    "unduh audio tiktok mp3",
+    "ssstik",
+    "tiktok mp3 sound download",
   ],
 };
 
@@ -28,7 +28,7 @@ export default function TikTokDownloaderPage() {
         <DownloaderForm
           initialPlatform="tiktok"
           titleOverride="TikTok Video Downloader"
-          subtitleOverride="Unduh video TikTok tanpa watermark dan audio sound TikTok MP3 dalam resolusi Full HD secara gratis."
+          subtitleOverride="Download TikTok videos without watermarks and extract TikTok audio sounds in crisp MP3 format for free."
         />
       </section>
 

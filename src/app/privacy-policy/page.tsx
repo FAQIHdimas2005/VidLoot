@@ -2,8 +2,8 @@ import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Kebijakan Privasi (Privacy Policy) - VidLoot",
-  description: "Kebijakan privasi mengenai penggunaan data di situs VidLoot.",
+  title: "Privacy Policy - VidLoot",
+  description: "Privacy policy regarding user data handling and cookies on VidLoot.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -15,34 +15,34 @@ export default function PrivacyPolicyPage() {
             <Lock className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Kebijakan Privasi</h1>
-            <p className="text-xs text-slate-400 mt-1">Terakhir diperbarui: 2026</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Privacy Policy</h1>
+            <p className="text-xs text-slate-400 mt-1">Last Updated: 2026</p>
           </div>
         </div>
 
         <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-4">
           <p>
-            Di <strong>VidLoot</strong>, privasi pengunjung kami adalah salah satu prioritas utama kami. Dokumen Kebijakan Privasi ini berisi jenis informasi yang dikumpulkan dan dicatat oleh situs kami serta bagaimana kami menggunakannya.
+            At <strong>VidLoot</strong>, accessible via our web platform, user privacy is one of our foremost priorities. This Privacy Policy outlines the types of information collected and how we handle it.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Pengumpulan Data Pribadi</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Personal Data Collection</h2>
           <p>
-            Kami <strong>tidak mewajibkan pendaftaran akun</strong> dan kami tidak mengumpulkan informasi identitas pribadi (seperti nama lengkap, alamat rumah, atau kata sandi media sosial Anda). Tautan URL yang Anda masukkan hanya diproses secara instan di memori sementara untuk mengambil file media dan tidak disimpan secara permanen di basis data kami.
+            VidLoot <strong>does not require user registration</strong>. We never collect personal identification information such as names, physical addresses, email addresses, or social media passwords. URLs submitted to our input fields are processed ephemerally in server memory solely to retrieve media information and are discarded immediately.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">2. File Log (Log Files)</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">2. Server Log Files</h2>
           <p>
-            Seperti kebanyakan situs web standar lainnya, UnduhCepat menggunakan file log server standar untuk tujuan pemeliharaan sistem, analisis performa situs, dan pencegahan penyalahgunaan (DDoS/Spam). Data ini mencakup alamat protokol internet (IP), jenis browser, Internet Service Provider (ISP), dan waktu kunjungan. Data ini tidak terhubung dengan informasi yang dapat diidentifikasi secara pribadi.
+            Like standard web services globally, VidLoot employs standard log files for system performance monitoring, security diagnostics, and bot/DDoS mitigation. These include internet protocol (IP) addresses, browser user-agents, referring pages, and date/time stamps. This information is not linked to any personally identifiable information.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">3. Cookie & Mitra Periklanan</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">3. Cookies & Advertising Partners</h2>
           <p>
-            Situs kami dapat menggunakan cookie untuk meningkatkan pengalaman pengguna dan menampilkan iklan melalui jaringan pihak ketiga (seperti Adsterra, Monetag, atau A-Ads). Vendor pihak ketiga tersebut dapat menggunakan cookie atau web beacon untuk menyajikan iklan yang relevan kepada pengunjung berdasarkan kunjungan mereka ke situs ini atau situs web lain di internet.
+            VidLoot displays advertisements via reputable third-party ad networks (such as Adsterra, Monetag, and A-Ads). These third-party vendors may use cookies, web beacons, or local storage mechanisms to deliver relevant, non-intrusive advertisements based on visits to this site and other websites across the web.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">4. Persetujuan</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">4. Consent</h2>
           <p>
-            Dengan menggunakan situs web kami, Anda dengan ini menyetujui Kebijakan Privasi kami dan menyetujui syarat-syaratnya.
+            By using our website, you hereby consent to our Privacy Policy and agree to its terms.
           </p>
         </div>
       </div>

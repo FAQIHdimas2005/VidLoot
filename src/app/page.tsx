@@ -2,27 +2,27 @@ import DownloaderForm from "@/components/DownloaderForm";
 import AdBanner from "@/components/AdBanner";
 import FeatureCards from "@/components/FeatureCards";
 import FaqSection from "@/components/FaqSection";
-import { Copy, Link as LinkIcon, Download, Check } from "lucide-react";
+import { Copy, Link as LinkIcon, Download } from "lucide-react";
 
 export default function Home() {
   const steps = [
     {
       num: "1",
       icon: <Copy className="w-5 h-5 text-blue-400" />,
-      title: "Salin Link Video",
-      desc: "Buka TikTok, Instagram, Twitter/X, FB, atau YouTube, lalu salin URL tautan postingan videonya.",
+      title: "Copy Video Link",
+      desc: "Open TikTok, Instagram, Twitter/X, Facebook, or YouTube, and copy the URL link of the video post.",
     },
     {
       num: "2",
       icon: <LinkIcon className="w-5 h-5 text-indigo-400" />,
-      title: "Tempel di VidLoot",
-      desc: "Paste link tersebut ke kolom formulir di atas, lalu tekan tombol 'Download'.",
+      title: "Paste into VidLoot",
+      desc: "Paste the copied URL into the search box above, then click the 'Download' button.",
     },
     {
       num: "3",
       icon: <Download className="w-5 h-5 text-emerald-400" />,
-      title: "Simpan File Video / MP3",
-      desc: "Pilih kualitas MP4 (Full HD/HD) atau format audio MP3. Video otomatis tersimpan di galeri/folder unduhan.",
+      title: "Save Video or Audio",
+      desc: "Choose between Full HD/SD MP4 video or MP3 audio. The file will save directly to your storage.",
     },
   ];
 
@@ -52,10 +52,10 @@ export default function Home() {
       <section className="w-full max-w-4xl px-4 my-8">
         <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/50 border border-slate-800 text-center">
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Cara Download Video Semua Sosmed Tanpa Watermark
+            How to Download Social Media Videos Without Watermark
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-lg mx-auto">
-            Hanya butuh 3 langkah singkat kurang dari 5 detik untuk menyimpan konten favoritmu.
+            It takes just 3 simple steps in less than 5 seconds to download your favorite media clips.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 text-left">

@@ -7,13 +7,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "X & Twitter Video Downloader MP4 HD - VidLoot",
   description:
-    "Unduh video dan GIF dari X (Twitter) kualitas Full HD 1080p, 720p, dan MP3 secara instan dan gratis tanpa aplikasi.",
+    "Download videos and GIF animations from X (formerly Twitter) in Full HD 1080p, 720p, and MP3 audio instantly for free.",
   keywords: [
     "twitter video downloader",
     "download video x",
     "x video downloader",
-    "unduh video twitter mp4",
-    "save twitter video",
+    "save twitter video mp4",
+    "twitter gif download",
   ],
 };
 
@@ -28,7 +28,7 @@ export default function XDownloaderPage() {
         <DownloaderForm
           initialPlatform="twitter"
           titleOverride="X / Twitter Video Downloader"
-          subtitleOverride="Simpan video tweet dan animasi GIF dari X (Twitter) ke format MP4 jernih dalam hitungan detik."
+          subtitleOverride="Save video tweets and animated GIFs from X (Twitter) in crystal-clear MP4 format in seconds."
         />
       </section>
 

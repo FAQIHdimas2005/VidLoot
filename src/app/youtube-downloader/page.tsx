@@ -7,12 +7,12 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "YouTube Shorts & Video Downloader MP4/MP3 - VidLoot",
   description:
-    "Unduh video YouTube Shorts dan klip video online dalam format MP4 HD atau ekstrak audio MP3 secara gratis.",
+    "Download YouTube Shorts and videos online in HD MP4 format or convert to clean MP3 audio tracks for free.",
   keywords: [
     "youtube shorts downloader",
     "download youtube mp4",
-    "unduh youtube mp3",
-    "y2mate",
+    "convert youtube mp3",
+    "y2mate alternative",
     "yt shorts downloader",
   ],
 };
@@ -28,7 +28,7 @@ export default function YouTubeDownloaderPage() {
         <DownloaderForm
           initialPlatform="youtube"
           titleOverride="YouTube Shorts & Video Downloader"
-          subtitleOverride="Simpan video YouTube Shorts dan format audio MP3 berkualitas jernih langsung ke perangkatmu."
+          subtitleOverride="Save YouTube Shorts videos in MP4 format or extract high-fidelity MP3 music tracks straight to your device."
         />
       </section>
 

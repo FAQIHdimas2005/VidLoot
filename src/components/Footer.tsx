@@ -12,11 +12,11 @@ export default function Footer() {
               Vid<span className="text-blue-500">Loot</span>
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              Layanan online gratis untuk mengunduh video dan audio dari berbagai platform media sosial tanpa watermark. Cepat, aman, dan tanpa perlu instalasi aplikasi tambahan.
+              Free, fast, and secure online platform to download high-definition videos and audios from popular social media platforms without watermarks. No installation required.
             </p>
             <div className="flex items-center gap-2 text-xs text-emerald-400 pt-1">
               <ShieldCheck className="w-4 h-4" />
-              <span>100% Aman & Tanpa Penyimpanan Data Pribadi</span>
+              <span>100% Free, Secure & No Personal Data Stored</span>
             </div>
           </div>
 
@@ -54,21 +54,21 @@ export default function Footer() {
 
           {/* Legal / Policy */}
           <div className="space-y-2">
-            <h4 className="text-white font-semibold text-sm">Legalitas & Privasi</h4>
+            <h4 className="text-white font-semibold text-sm">Legal & Privacy</h4>
             <ul className="space-y-1.5 text-xs">
               <li>
                 <Link href="/dmca" className="hover:text-white transition-colors">
-                  DMCA / Disclaimer Hak Cipta
+                  DMCA / Copyright Disclaimer
                 </Link>
               </li>
               <li>
                 <Link href="/privacy-policy" className="hover:text-white transition-colors">
-                  Kebijakan Privasi (Privacy Policy)
+                  Privacy Policy
                 </Link>
               </li>
               <li>
                 <Link href="/terms-of-service" className="hover:text-white transition-colors">
-                  Syarat & Ketentuan (Terms of Service)
+                  Terms of Service
                 </Link>
               </li>
             </ul>
@@ -78,12 +78,12 @@ export default function Footer() {
         {/* Disclaimer Warning */}
         <div className="border-t border-slate-900 pt-6 text-[11px] text-slate-400 leading-relaxed space-y-2">
           <p>
-            <strong>Disclaimer:</strong> VidLoot tidak berafiliasi dengan TikTok, ByteDance, Instagram, Meta, Twitter/X, atau YouTube. Seluruh merek dagang dan hak cipta materi video adalah milik dari pemilik akun/pencipta konten masing-masing. Layanan ini murni alat teknis untuk membantu pengguna mencadangkan konten publik yang diizinkan untuk penggunaan pribadi. Kami tidak meng-hosting atau menyimpan video apa pun di server kami.
+            <strong>Disclaimer:</strong> VidLoot is not affiliated, endorsed, or associated with TikTok, ByteDance, Instagram, Meta, Twitter/X, or YouTube. All trademarks, service marks, and trade names are the property of their respective owners. VidLoot is strictly an online technical utility helping users backup publicly accessible content for personal fair use. We do not host or archive any videos on our servers.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-900/60">
-            <span>© {new Date().getFullYear()} VidLoot. Seluruh hak cipta dilindungi.</span>
+            <span>© {new Date().getFullYear()} VidLoot. All rights reserved.</span>
             <span className="flex items-center gap-1 text-slate-400">
-              Dibuat dengan <Heart className="w-3 h-3 text-red-500 fill-red-500" /> untuk kemudahan berbagi
+              Made with <Heart className="w-3 h-3 text-red-500 fill-red-500" /> for creators worldwide
             </span>
           </div>
         </div>

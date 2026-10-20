@@ -50,10 +50,10 @@ export default function AdBanner({
           <div className="w-full min-h-[90px] border border-dashed border-slate-700 bg-slate-900/60 rounded-xl flex flex-col items-center justify-center p-3 text-center text-slate-400 group hover:border-slate-600 transition-colors">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
               <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              Slot Iklan ({slot.toUpperCase()})
+              Ad Placement Slot ({slot.toUpperCase()})
             </div>
             <p className="text-xs text-slate-400 max-w-md">
-              Siap dipasangi kode iklan (Adsterra / Monetag / A-Ads). Area ini otomatis menampilkan banner saat script iklan dimasukkan.
+              Ready for ad integration (Adsterra / Monetag / A-Ads). Responsive banner renders automatically when ad script is provided.
             </p>
           </div>
         )}

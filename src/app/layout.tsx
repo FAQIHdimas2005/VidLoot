@@ -10,21 +10,23 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "VidLoot - Universal Social Media Video Downloader (TikTok, IG, X, FB, YT)",
+  title: "VidLoot - Universal Social Media Video Downloader (TikTok, IG, X, FB, YouTube)",
   description:
-    "Download video TikTok tanpa watermark, Instagram Reels, X/Twitter video, Facebook video, dan YouTube Shorts gratis dalam format MP4 Full HD dan MP3.",
+    "Fast, free online social media video downloader. Download TikTok videos without watermark, Instagram Reels, X/Twitter videos, Facebook clips, and YouTube Shorts in Full HD MP4 & MP3.",
   keywords: [
     "vidloot",
-    "download video tiktok tanpa watermark",
-    "unduh reels instagram",
-    "download twitter video",
+    "tiktok downloader without watermark",
+    "instagram reels downloader",
+    "twitter video downloader",
+    "x video downloader",
     "facebook video downloader",
     "youtube shorts download mp4",
-    "snaptik",
-    "ssstiktok",
-    "savefrom",
+    "snaptik alternative",
+    "ssstik",
+    "savefrom net alternative",
+    "free video downloader",
   ],
-  authors: [{ name: "VidLoot Team" }],
+  authors: [{ name: "VidLoot Global Team" }],
   robots: "index, follow",
 };
 
@@ -34,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
+    <html lang="en">
       <body className="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
         <Navbar />
         <main className="flex-1 w-full">{children}</main>

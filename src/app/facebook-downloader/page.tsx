@@ -5,14 +5,14 @@ import FaqSection from "@/components/FaqSection";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Facebook Video & Reels Downloader - VidLoot",
+  title: "Facebook Video & Reels Downloader HD - VidLoot",
   description:
-    "Download video Facebook publik, FB Watch, dan Facebook Reels dalam kualitas Full HD / SD secara gratis dan cepat.",
+    "Download Facebook public videos, FB Watch, and Facebook Reels in Full HD / SD quality for free without installing apps.",
   keywords: [
     "facebook video downloader",
     "download video fb",
-    "unduh video facebook",
     "fb reels downloader",
+    "facebook watch download",
     "fdown",
   ],
 };
@@ -28,7 +28,7 @@ export default function FacebookDownloaderPage() {
         <DownloaderForm
           initialPlatform="facebook"
           titleOverride="Facebook Video & Reels Downloader"
-          subtitleOverride="Unduh video Facebook Watch, video beranda publik, dan FB Reels dengan kualitas video terbaik."
+          subtitleOverride="Download Facebook Watch videos, public feed clips, and FB Reels in optimal resolution."
         />
       </section>
 

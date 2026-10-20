@@ -2,8 +2,8 @@ import { FileText } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Syarat & Ketentuan Layanan (Terms of Service) - VidLoot",
-  description: "Syarat dan ketentuan penggunaan situs dan layanan VidLoot.",
+  title: "Terms of Service - VidLoot",
+  description: "Terms and conditions governing the use of VidLoot web services.",
 };
 
 export default function TermsOfServicePage() {
@@ -15,29 +15,29 @@ export default function TermsOfServicePage() {
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Syarat & Ketentuan Layanan</h1>
-            <p className="text-xs text-slate-400 mt-1">Terakhir diperbarui: 2026</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">Terms of Service</h1>
+            <p className="text-xs text-slate-400 mt-1">Last Updated: 2026</p>
           </div>
         </div>
 
         <div className="text-xs sm:text-sm text-slate-300 leading-relaxed space-y-4">
           <p>
-            Selamat datang di <strong>VidLoot</strong>. Dengan mengakses dan menggunakan situs web ini, Anda setuju untuk terikat oleh Syarat dan Ketentuan berikut.
+            Welcome to <strong>VidLoot</strong>. By accessing or using this website, you agree to comply with and be bound by the following Terms of Service.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Penggunaan yang Diperbolehkan</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">1. Permitted Use</h2>
           <p>
-            Layanan kami dirancang untuk membantu pengguna mengunduh konten publik milik pribadi atau konten bebas lisensi untuk keperluan non-komersial dan penggunaan pribadi. Anda setuju untuk tidak menggunakan situs ini untuk mengunduh materi berhak cipta tanpa izin tertulis dari pemilik sah materi tersebut.
+            Our service is provided to assist users in saving publicly accessible, unencrypted media for strictly personal, non-commercial, and archival use. You agree not to use VidLoot to infringe on any third-party copyrights or intellectual property rights.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">2. Penafian Tanggung Jawab (Disclaimer)</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">2. Warranty Disclaimer</h2>
           <p>
-            Layanan ini disediakan atas dasar "sebagaimana adanya" (as is) dan "sebagaimana tersedia" (as available). Kami tidak memberikan jaminan bahwa situs akan selalu bebas gangguan atau bebas kesalahan teknis. Dalam keadaan apa pun, UnduhCepat tidak bertanggung jawab atas kerugian langsung atau tidak langsung akibat penggunaan layanan ini.
+            The services on VidLoot are provided on an "as is" and "as available" basis without warranties of any kind, whether express or implied. VidLoot does not guarantee uninterrupted, error-free, or fully secure operation under all conditions.
           </p>
 
-          <h2 className="text-base sm:text-lg font-bold text-white pt-2">3. Batasan dan Perlindungan Sistem</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white pt-2">3. Prohibited Conduct</h2>
           <p>
-            Anda dilarang melakukan tindakan yang dapat membebani infrastruktur server kami secara tidak wajar, termasuk penggunaan script scraping bot otomatis, serangan DDoS, atau upaya memintas sistem proteksi kami.
+            You agree not to engage in malicious scraping, denial-of-service attacks, automated spam querying, or any activity that artificially degrades platform performance or compromises server integrity.
           </p>
         </div>
       </div>

@@ -10,24 +10,24 @@ interface FaqItem {
 
 const faqs: FaqItem[] = [
   {
-    q: "Bagaimana cara download video dari media sosial menggunakan VidLoot?",
-    a: "Caranya sangat mudah: 1) Salin (copy) link video dari aplikasi TikTok, Instagram, X/Twitter, Facebook, atau YouTube. 2) Tempel (paste) link ke kolom input di atas. 3) Klik tombol 'Download'. 4) Pilih kualitas video (MP4 HD) atau audio (MP3) yang kamu inginkan, dan file akan otomatis tersimpan ke perangkatmu.",
+    q: "How do I download videos using VidLoot?",
+    a: "It takes just 3 simple steps: 1) Copy the video link from TikTok, Instagram, X (Twitter), Facebook, or YouTube. 2) Paste the link into the search box above. 3) Click 'Download'. Choose your preferred resolution (MP4 Full HD) or audio format (MP3), and the file will save directly to your device.",
   },
   {
-    q: "Apakah video TikTok yang diunduh benar-benar bebas watermark?",
-    a: "Ya, sistem kami secara otomatis menyaring dan mengambil video versi orisinal berkualitas tertinggi tanpa watermark logo TikTok.",
+    q: "Are TikTok videos downloaded without watermarks?",
+    a: "Yes! VidLoot automatically detects and extracts original, clean video streams without the TikTok watermark or author logo.",
   },
   {
-    q: "Di mana file video tersimpan setelah saya klik tombol download?",
-    a: "File unduhan akan langsung masuk ke folder 'Downloads' atau 'Unduhan' di browser perangkatmu. Di ponsel Android/iPhone, video akan otomatis muncul di galeri atau aplikasi Files.",
+    q: "Where are downloaded files saved on my device?",
+    a: "Files are automatically saved into your browser's default 'Downloads' folder. On iPhone and Android mobile devices, the video will appear in your Photos/Gallery or Files app.",
   },
   {
-    q: "Apakah layanan ini dipungut biaya atau memerlukan registrasi?",
-    a: "Layanan ini 100% gratis selamanya tanpa perlu mendaftar akun atau memasukkan informasi kartu kredit apa pun.",
+    q: "Is VidLoot completely free to use?",
+    a: "Yes, VidLoot is 100% free with no hidden charges, trial periods, or credit card requirements. You can download as many videos as you like.",
   },
   {
-    q: "Apakah VidLoot menyimpan salinan video yang saya unduh?",
-    a: "Tidak. Kami tidak menyimpan atau mengarsipkan video di server kami. Seluruh proses pengambilan data dilakukan secara langsung (live stream) dari server penyedia konten publik.",
+    q: "Does VidLoot store or host copies of downloaded videos?",
+    a: "No. VidLoot never stores, hosts, or archives any video or audio files on our servers. All media is streamed live and directly from official public content delivery networks (CDNs).",
   },
 ];
 
@@ -42,10 +42,10 @@ export default function FaqSection() {
     <section className="max-w-3xl mx-auto my-12 px-4">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-extrabold text-white tracking-tight">
-          Pertanyaan yang Sering Diajukan (FAQ)
+          Frequently Asked Questions (FAQ)
         </h2>
         <p className="text-xs text-slate-400 mt-2">
-          Semua yang perlu kamu ketahui tentang cara kerja dan keamanan VidLoot.
+          Everything you need to know about using VidLoot safely and easily.
         </p>
       </div>
 

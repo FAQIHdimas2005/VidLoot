@@ -7,13 +7,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Instagram Reels & Video Downloader HD - VidLoot",
   description:
-    "Cara mudah download Reels Instagram, IG Video, dan Story online gratis tanpa aplikasi. Simpan video IG kualitas tinggi langsung ke galeri HP.",
+    "Fast and easy way to download Instagram Reels, IG videos, and Stories online for free. Save high-resolution Instagram MP4 videos directly to your gallery.",
   keywords: [
     "instagram reels downloader",
-    "download video ig",
-    "unduh reels instagram",
-    "save ig story",
-    "ig downloader",
+    "download ig video",
+    "save instagram reels",
+    "instagram story downloader",
+    "ig video download",
   ],
 };
 
@@ -28,7 +28,7 @@ export default function InstagramDownloaderPage() {
         <DownloaderForm
           initialPlatform="instagram"
           titleOverride="Instagram Reels & Video Downloader"
-          subtitleOverride="Unduh Reels Instagram, Story, dan postingan video feed dalam kualitas HD jernih tanpa perlu login akun."
+          subtitleOverride="Download Instagram Reels, feed videos, and IG clips in high-definition quality without account login."
         />
       </section>
 

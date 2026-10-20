@@ -4,23 +4,23 @@ export default function FeatureCards() {
   const features = [
     {
       icon: <Sparkles className="w-6 h-6 text-yellow-400" />,
-      title: "Tanpa Watermark",
-      description: "Hasil unduhan video bersih tanpa watermark mengganggu, ideal untuk edit ulang atau disimpan ke arsip galeri.",
+      title: "No Watermark",
+      description: "Get clean, watermark-free video downloads from TikTok and Reels, ready for saving, editing, or archiving.",
     },
     {
       icon: <Zap className="w-6 h-6 text-blue-400" />,
-      title: "Direct Download Cepat",
-      description: "File langsung tersimpan ke memori perangkat tanpa mental ke tab kosong berulang-ulang.",
+      title: "Fast Direct Download",
+      description: "Direct file attachment streaming prevents annoying blank tab redirects and saves straight to your storage.",
     },
     {
       icon: <Shield className="w-6 h-6 text-emerald-400" />,
-      title: "100% Gratis & Aman",
-      description: "Tidak perlu login akun sosmed, tidak perlu bayar, dan tanpa batasan jumlah unduhan harian.",
+      title: "100% Free & Unlimited",
+      description: "No account registration or login required. Unlimited daily video extractions with zero subscription fees.",
     },
     {
       icon: <Smartphone className="w-6 h-6 text-purple-400" />,
-      title: "Semua Perangkat",
-      description: "Kompatibel sempurna di Android, iPhone (iOS), iPad, laptop Windows, MacBook, maupun Linux.",
+      title: "All Devices Supported",
+      description: "Flawless performance across iOS (iPhone & iPad), Android, Windows PC, Mac, Linux, and all modern browsers.",
     },
   ];
 

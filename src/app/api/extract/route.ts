@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
     if (!url || typeof url !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'URL video tidak boleh kosong.' },
+        { success: false, error: 'Video URL cannot be empty.' },
         { status: 400 }
       );
     }
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Terjadi kesalahan saat memproses link video.',
+        error: error.message || 'An error occurred while processing the video link.',
       },
       { status: 500 }
     );

@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const filename = searchParams.get('filename') || 'video_download.mp4';
 
   if (!targetUrl) {
-    return NextResponse.json({ error: 'Parameter URL target dibutuhkan.' }, { status: 400 });
+    return NextResponse.json({ error: 'Target URL parameter is required.' }, { status: 400 });
   }
 
   try {

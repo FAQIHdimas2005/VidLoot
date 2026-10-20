@@ -53,9 +53,9 @@ async function extractTwitter(url: string): Promise<VideoExtractionResult | null
       return {
         success: false,
         platform: 'twitter',
-        title: tweet.text || 'Postingan X',
+        title: tweet.text || 'X Post',
         medias: [],
-        error: 'Tidak ditemukan video pada postingan tweet/X ini.',
+        error: 'No video stream found on this X / tweet post.',
       };
     }
 
@@ -84,7 +84,7 @@ async function extractTwitter(url: string): Promise<VideoExtractionResult | null
           quality: 'MP4 Standard Quality (SD)',
           format: 'mp4',
           url: variants[variants.length - 1].url,
-          label: 'Download Video (SD / Ukuran Kecil)',
+          label: 'Download Video (SD / Compact)',
         });
       }
     } else if (firstVideo.url) {
@@ -102,7 +102,7 @@ async function extractTwitter(url: string): Promise<VideoExtractionResult | null
         quality: 'Audio Only',
         format: 'mp3',
         url: medias[0].url,
-        label: 'Download Audio Saja (MP3)',
+        label: 'Download Audio Only (MP3)',
       });
     }
 
@@ -145,7 +145,7 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
 
       if (v.hdplay) {
         medias.push({
-          quality: 'Full HD (Tanpa Watermark)',
+          quality: 'Full HD (No Watermark)',
           format: 'mp4',
           url: v.hdplay,
           label: 'Download Video MP4 Full HD',
@@ -154,7 +154,7 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
 
       if (v.play) {
         medias.push({
-          quality: 'Standard (Tanpa Watermark)',
+          quality: 'Standard (No Watermark)',
           format: 'mp4',
           url: v.play,
           label: 'Download Video MP4 Standard',
@@ -270,7 +270,7 @@ export async function extractVideo(url: string): Promise<VideoExtractionResult> 
       platform,
       title: '',
       medias: [],
-      error: 'URL tidak dikenali. Masukkan link dari TikTok, Instagram, X/Twitter, Facebook, atau YouTube.',
+      error: 'Unrecognized URL. Please provide a valid link from TikTok, Instagram, X/Twitter, Facebook, or YouTube.',
     };
   }
 
@@ -343,6 +343,6 @@ export async function extractVideo(url: string): Promise<VideoExtractionResult> 
     platform,
     title: '',
     medias: [],
-    error: `Maaf, video dari ${platform.toUpperCase()} tidak dapat diambil. Pastikan akun tidak di-private atau link postingan valid.`,
+    error: `Could not retrieve media from ${platform.toUpperCase()}. Please ensure the post is public and the URL is valid.`,
   };
 }
