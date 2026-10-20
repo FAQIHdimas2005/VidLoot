@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "btch-downloader": "^6.4.0",
     "clsx": "^2.1.1",
+    "instagram-url-direct": "^2.0.7",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "react": "^19.0.0",
