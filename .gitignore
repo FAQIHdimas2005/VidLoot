@@ -27,3 +27,7 @@
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Scratch
+scratch/
+
