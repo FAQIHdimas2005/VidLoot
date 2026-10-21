@@ -146,6 +146,14 @@ export default function DownloaderForm({
   };
 
   const handleClaimDownload = () => {
+    // Open Monetag / Adsterra SmartLink if configured in env
+    if (typeof window !== "undefined") {
+      const smartLink = process.env.NEXT_PUBLIC_MONETAG_DIRECT_LINK;
+      if (smartLink) {
+        window.open(smartLink, "_blank", "noopener,noreferrer");
+      }
+    }
+
     if (pendingResult) {
       setResult(pendingResult);
       setThumbError(false);
@@ -426,6 +434,8 @@ export default function DownloaderForm({
                       key={idx}
                       href={proxyUrl}
                       download={filename}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md group ${
                         idx === 0
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"

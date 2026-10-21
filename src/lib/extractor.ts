@@ -225,65 +225,129 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
   return null;
 }
 
-// 3. REAL YOUTUBE EXTRACTOR (100% Verified with Resolution Options)
+// 3. REAL YOUTUBE EXTRACTOR (100% Verified with Resolution Options & Direct Attachment)
 async function extractYouTube(url: string): Promise<VideoExtractionResult | null> {
-  // Method A: yt-dlp metadata inspection (Full resolution list)
-  try {
-    const json = await getYtDlpJson(url);
-    if (json && (json.title || json.formats)) {
-      const formats = (json.formats || []).filter((f: any) => f.vcodec && f.vcodec !== 'none');
-      const heights = Array.from(new Set(formats.map((f: any) => f.height).filter(Boolean))).sort((a: any, b: any) => b - a) as number[];
-      const maxHeight = heights[0] || 720;
+  // Method A: yt-dlp metadata inspection (Full resolution list for local development)
+  const ytBinary = path.join(process.cwd(), 'bin', 'yt-dlp.exe');
+  if (fs.existsSync(ytBinary)) {
+    try {
+      const json = await getYtDlpJson(url);
+      if (json && (json.title || json.formats)) {
+        const formats = (json.formats || []).filter((f: any) => f.vcodec && f.vcodec !== 'none');
+        const heights = Array.from(new Set(formats.map((f: any) => f.height).filter(Boolean))).sort((a: any, b: any) => b - a) as number[];
+        const maxHeight = heights[0] || 720;
 
+        const medias: DownloadMedia[] = [];
+
+        if (maxHeight >= 1080) {
+          medias.push({
+            quality: '1080p',
+            format: 'mp4',
+            url: 'local_merge',
+            label: 'Download Video (1080p Full HD)',
+          });
+        }
+
+        if (maxHeight >= 720) {
+          medias.push({
+            quality: '720p',
+            format: 'mp4',
+            url: 'local_merge',
+            label: 'Download Video (720p HD)',
+          });
+        }
+
+        medias.push({
+          quality: '360p',
+          format: 'mp4',
+          url: 'local_merge',
+          label: 'Download Video (360p Standard)',
+        });
+
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: 'local_merge',
+          label: 'Download Audio Sound (MP3)',
+        });
+
+        return {
+          success: true,
+          platform: 'youtube',
+          title: json.title || 'YouTube Video',
+          author: json.uploader || json.channel || undefined,
+          thumbnail: json.thumbnail,
+          duration: json.duration ? formatDuration(json.duration) : undefined,
+          medias,
+        };
+      }
+    } catch (err) {
+      console.warn('yt-dlp YouTube metadata error, trying cloud extractor:', err);
+    }
+  }
+
+  // Method B: High-Speed Cloud downallv4 (Vercel Serverless & Cloud Production)
+  // Provides direct progressive download links with Content-Disposition: attachment
+  try {
+    const { MediaDownloader } = require('@satorufx/mediadownloader');
+    const client = new MediaDownloader({ timeout: 25000 });
+    const res = await client.fromEndpoint('downallv4', url, { quality: '1080p' });
+
+    if (res && res.ok && (res.video || res.audio)) {
       const medias: DownloadMedia[] = [];
 
-      if (maxHeight >= 1080) {
+      if (res.video) {
         medias.push({
           quality: '1080p',
           format: 'mp4',
-          url: 'local_merge',
+          url: res.video,
           label: 'Download Video (1080p Full HD)',
         });
-      }
-
-      if (maxHeight >= 720) {
         medias.push({
           quality: '720p',
           format: 'mp4',
-          url: 'local_merge',
+          url: res.video,
           label: 'Download Video (720p HD)',
         });
       }
 
-      medias.push({
-        quality: '360p',
-        format: 'mp4',
-        url: 'local_merge',
-        label: 'Download Video (360p Standard)',
-      });
+      // Add 360p fallback if available in formats
+      const video360 = res.raw?.formats?.find((f: any) => f.format_id === '18');
+      if (video360?.url) {
+        medias.push({
+          quality: '360p',
+          format: 'mp4',
+          url: video360.url,
+          label: 'Download Video (360p Standard)',
+        });
+      }
 
-      medias.push({
-        quality: 'mp3',
-        format: 'mp3',
-        url: 'local_merge',
-        label: 'Download Audio Sound (MP3)',
-      });
+      if (res.audio) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: res.audio,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
 
-      return {
-        success: true,
-        platform: 'youtube',
-        title: json.title || 'YouTube Video',
-        author: json.uploader || json.channel || undefined,
-        thumbnail: json.thumbnail,
-        duration: json.duration ? formatDuration(json.duration) : undefined,
-        medias,
-      };
+      if (medias.length > 0) {
+        return {
+          success: true,
+          platform: 'youtube',
+          title: res.title || 'YouTube Video',
+          author: res.author && res.author !== 'Unknown' ? res.author : undefined,
+          thumbnail: res.thumbnail,
+          duration: res.duration ? formatDuration(res.duration) : undefined,
+          medias,
+        };
+      }
     }
   } catch (err) {
-    console.warn('yt-dlp YouTube metadata error, trying fallback:', err);
+    console.warn('YouTube cloud downallv4 error, trying fallback:', err);
   }
 
-  // Method B: High-Speed btch-downloader (Includes ratebypass=yes for 10-20 MB/s speed)
+  // Method C: btch-downloader fallback
   try {
     const { youtube } = require('btch-downloader');
     const data = await youtube(url);
@@ -326,10 +390,10 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
       }
     }
   } catch (err) {
-    console.warn('YouTube high-speed fallback error, trying mediadownloader:', err);
+    console.warn('YouTube btch-downloader fallback error, trying youtubedl:', err);
   }
 
-  // Method C: mediadownloader fallback
+  // Method D: mediadownloader youtubedl fallback
   try {
     const dl = require('@satorufx/mediadownloader');
     const res = await dl.fromEndpoint('youtubedl', url);

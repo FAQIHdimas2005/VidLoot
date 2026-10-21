@@ -10,6 +10,9 @@ import {
   sanitizeCacheKeyPart,
 } from '@/lib/security';
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 function getCleanFilename(
   rawName: string,
   ext: string = 'mp4',
@@ -355,7 +358,25 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
           { status: 429, headers: { 'Retry-After': '15' } }
         );
       }
-      console.warn('Local merge failed, attempting direct stream fallback:', err);
+      console.warn('Local merge failed, attempting cloud fallback:', err);
+
+      // Cloud stream fallback for Vercel / serverless Linux environments
+      const origUrl = searchParams.get('origUrl');
+      if (origUrl && (await isSafeExternalUrl(origUrl))) {
+        try {
+          const { MediaDownloader } = require('@satorufx/mediadownloader');
+          const client = new MediaDownloader({ timeout: 25000 });
+          const cloudRes = await client.fromEndpoint('downallv4', origUrl, {
+            quality: qualityParam.includes('1080') ? '1080p' : '720p',
+          });
+          const streamUrl = isAudio ? cloudRes.audio || cloudRes.video : cloudRes.video;
+          if (streamUrl && (await isSafeExternalUrl(streamUrl))) {
+            return NextResponse.redirect(streamUrl);
+          }
+        } catch (cloudErr) {
+          console.warn('Cloud fallback resolution failed:', cloudErr);
+        }
+      }
     }
   }
 
