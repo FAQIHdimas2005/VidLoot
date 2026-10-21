@@ -1,5 +1,6 @@
 import { PlatformType, VideoExtractionResult, DownloadMedia } from './types';
 import { detectPlatform } from './platform';
+import { isSafeCliTargetUrl } from './security';
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -14,12 +15,19 @@ function formatDuration(seconds: number): string {
 // Helper: Run local yt-dlp to extract rich metadata
 function getYtDlpJson(url: string, extraArgs: string[] = []): Promise<any | null> {
   return new Promise((resolve) => {
+    if (!isSafeCliTargetUrl(url)) return resolve(null);
     const ytBinary = path.join(process.cwd(), 'bin', 'yt-dlp.exe');
     if (!fs.existsSync(ytBinary)) return resolve(null);
 
+    const defaultArgs = ['-j', '--no-playlist', '--no-exec', '--no-config-locations', '--js-runtimes', 'node'];
+    const cookiePath = path.join(process.cwd(), 'bin', 'cookies.txt');
+    if (fs.existsSync(cookiePath)) {
+      defaultArgs.push('--cookies', cookiePath);
+    }
+
     execFile(
       ytBinary,
-      ['-j', '--no-playlist', ...extraArgs, url],
+      [...defaultArgs, ...extraArgs, '--', url],
       { timeout: 15000, maxBuffer: 15 * 1024 * 1024 },
       (err, stdout) => {
         if (err || !stdout) return resolve(null);
@@ -52,7 +60,10 @@ async function extractTwitter(url: string): Promise<VideoExtractionResult | null
     const tweet = data.tweet;
     if (!tweet) return null;
 
-    const videos = tweet.media?.videos || [];
+    let videos = tweet.media?.videos || [];
+    if (videos.length === 0 && tweet.quote?.media?.videos) {
+      videos = tweet.quote.media.videos;
+    }
     if (videos.length === 0) {
       return {
         success: false,
@@ -272,19 +283,59 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
     console.warn('yt-dlp YouTube metadata error, trying fallback:', err);
   }
 
-  // Method B: mediadownloader fallback
+  // Method B: High-Speed btch-downloader (Includes ratebypass=yes for 10-20 MB/s speed)
+  try {
+    const { youtube } = require('btch-downloader');
+    const data = await youtube(url);
+    if (data && (data.status || data.mp4)) {
+      const medias: DownloadMedia[] = [];
+
+      if (data.mp4) {
+        medias.push({
+          quality: '720p',
+          format: 'mp4',
+          url: data.mp4,
+          label: 'Download Video MP4 (Fast HD)',
+        });
+        medias.push({
+          quality: '360p',
+          format: 'mp4',
+          url: data.mp4,
+          label: 'Download Video MP4 (Standard)',
+        });
+      }
+
+      if (data.mp3) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: data.mp3,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
+
+      if (medias.length > 0) {
+        return {
+          success: true,
+          platform: 'youtube',
+          title: data.title || 'YouTube Video',
+          author: data.author || undefined,
+          thumbnail: data.thumbnail,
+          medias,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('YouTube high-speed fallback error, trying mediadownloader:', err);
+  }
+
+  // Method C: mediadownloader fallback
   try {
     const dl = require('@satorufx/mediadownloader');
     const res = await dl.fromEndpoint('youtubedl', url);
 
     if (res && res.ok && res.video) {
       const medias: DownloadMedia[] = [
-        {
-          quality: '720p',
-          format: 'mp4',
-          url: res.video,
-          label: 'Download Video (720p HD)',
-        },
         {
           quality: '360p',
           format: 'mp4',
@@ -487,7 +538,7 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
 
     let rawTitle = ogTitle ? decodeHtmlEntities(ogTitle[1]) : '';
 
-    const matchQuote = rawTitle.match(/on Instagram:\s*["“](.*?)["”]?$/s);
+    const matchQuote = rawTitle.match(/on Instagram:\s*["“]([\s\S]*?)["”]?$/);
     if (matchQuote && matchQuote[1]) {
       const caption = matchQuote[1].replace(/[\r\n]+/g, ' ').trim();
       const authorPart = rawTitle.split(/on Instagram:/i)[0].trim();
@@ -500,7 +551,7 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
 
     if (ogDesc) {
       const cleanDesc = decodeHtmlEntities(ogDesc[1]);
-      const matchDesc = cleanDesc.match(/:\s*["“](.*?)["”]?$/s);
+        const matchDesc = cleanDesc.match(/:\s*["“]([\s\S]*?)["”]?$/);
       if (matchDesc && matchDesc[1]) {
         return {
           title: matchDesc[1].replace(/[\r\n]+/g, ' ').trim().slice(0, 120),
@@ -641,6 +692,49 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
     }
   } catch (err) {
     console.warn('Instagram snapsave error:', err);
+  }
+
+  // Method D: mediadownloader fallback for Instagram
+  try {
+    const dl = require('@satorufx/mediadownloader');
+    const res = await dl.download(url);
+    if (res && res.ok && (res.video || res.media?.length)) {
+      const medias: DownloadMedia[] = [];
+      const videoUrl = res.video || res.media?.find((m: any) => m.type === 'video')?.url;
+      const audioUrl = res.audio || res.media?.find((m: any) => m.type === 'audio')?.url;
+
+      if (videoUrl) {
+        medias.push({
+          quality: res.videoQuality || '1080p',
+          format: 'mp4',
+          url: videoUrl,
+          label: `Download Instagram Video (${res.videoQuality || 'Full HD'})`,
+        });
+      }
+
+      if (audioUrl || videoUrl) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: audioUrl || videoUrl,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
+
+      if (medias.length > 0) {
+        return {
+          success: true,
+          platform: 'instagram',
+          title: res.title || 'Instagram Reel',
+          author: res.author || undefined,
+          thumbnail: res.thumbnail || undefined,
+          duration: res.duration ? formatDuration(res.duration) : undefined,
+          medias,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Instagram mediadownloader error:', err);
   }
 
   return null;

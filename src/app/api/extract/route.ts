@@ -13,14 +13,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (url.trim().length > 2048) {
+      return NextResponse.json(
+        { success: false, error: 'Video URL is too long.' },
+        { status: 400 }
+      );
+    }
+
     const result = await extractVideo(url);
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Extraction error:', error);
+  } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request body.' },
+        { status: 400 }
+      );
+    }
+    console.error('[Extraction Error]:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'An error occurred while processing the video link.',
+        error: 'Unable to extract video. Please verify the URL and try again.',
       },
       { status: 500 }
     );

@@ -9,19 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "@satorufx/mediadownloader": "^1.1.0",
     "btch-downloader": "^6.4.0",
     "clsx": "^2.1.1",
-    "instagram-url-direct": "^2.0.7",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "snapsave-media-downloader": "^2.5.1",
-    "tailwind-merge": "^3.0.1",
-    "youtubei.js": "^18.2.0",
-    "yt-dlp-wrap": "^2.3.12"
+    "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
