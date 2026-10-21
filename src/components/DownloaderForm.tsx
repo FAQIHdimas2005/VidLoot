@@ -380,21 +380,30 @@ export default function DownloaderForm({
               {/* Download Buttons List */}
               <div className="pt-2 space-y-2">
                 {result.medias.map((media, idx) => {
-                  const cleanTitle = (result.title || `VidLoot_${result.platform}`)
+                  const rawClean = (result.title || `VidLoot_${result.platform}`)
                     .replace(/[/\\?%*:|"<>]/g, '')
                     .replace(/\s+/g, ' ')
                     .trim()
+                    .replace(/^\.+|\.+$/g, '')
+                    .trim()
                     .slice(0, 100);
 
-                  const filename = `${cleanTitle || 'video'}.${media.format}`;
+                  const validTitle =
+                    rawClean && /[a-zA-Z0-9]/.test(rawClean)
+                      ? rawClean
+                      : `VidLoot_${result.platform}_${Date.now().toString().slice(-4)}`;
+
+                  const filename = `${validTitle}.${media.format}`;
 
                   const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(
                     media.url
                   )}&origUrl=${encodeURIComponent(url)}&platform=${encodeURIComponent(
                     result.platform
+                  )}&quality=${encodeURIComponent(
+                    media.quality || 'default'
                   )}&filename=${encodeURIComponent(filename)}`;
 
-                  const isAudio = media.format === "mp3";
+                  const isAudio = media.format === "mp3" || media.quality === "mp3";
 
                   return (
                     <a

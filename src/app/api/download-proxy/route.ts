@@ -1,34 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { spawn } from 'child_process';
 
-function getCleanFilename(rawName: string, ext: string = 'mp4'): { ascii: string; utf8: string } {
+function getCleanFilename(
+  rawName: string,
+  ext: string = 'mp4',
+  platform: string = 'video'
+): { ascii: string; utf8: string } {
+  // 1. Strip extension if passed
   const withoutExt = rawName.replace(/\.[^/.]+$/, '');
-  const sanitized = withoutExt
+
+  // 2. Remove dangerous Windows characters and trim extra spaces
+  let sanitized = withoutExt
     .replace(/[/\\?%*:|"<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+    .replace(/^\.+|\.+$/g, '') // Strip leading/trailing dots to prevent Windows .mp4 bug
+    .trim()
     .slice(0, 120);
 
-  const finalName = `${sanitized || 'video'}.${ext}`;
+  // 3. If title is empty or has no alphanumeric characters (e.g. "..."), use fallback
+  if (!sanitized || !/[a-zA-Z0-9]/.test(sanitized)) {
+    sanitized = `VidLoot_${platform}_${Date.now().toString().slice(-4)}`;
+  }
+
+  const finalName = `${sanitized}.${ext}`;
   const ascii = finalName.replace(/[^\x20-\x7E]/g, '_');
   const utf8 = encodeURIComponent(finalName);
   return { ascii, utf8 };
 }
 
-async function ensureYouTubeMerged(videoUrl: string, quality: string = '360p'): Promise<string> {
+async function ensureLocalMerged(
+  videoUrl: string,
+  platform: string,
+  quality: string = '720p',
+  isAudio: boolean = false
+): Promise<string> {
   const tempDir = path.join(process.cwd(), '.temp-downloads');
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
 
-  // Extract ID or hash
-  const match = videoUrl.match(/(?:youtu\.be\/|v=|\/shorts\/|embed\/)([\w-]{11})/);
-  const videoId = match ? match[1] : 'yt_video';
-  const outputPath = path.join(tempDir, `${videoId}_${quality}.mp4`);
+  // Generate safe unique key for cache
+  let idKey = 'media';
+  if (platform === 'youtube') {
+    const match = videoUrl.match(/(?:youtu\.be\/|v=|\/shorts\/|embed\/)([\w-]{11})/);
+    idKey = match ? match[1] : 'yt_' + crypto.createHash('md5').update(videoUrl).digest('hex').slice(0, 8);
+  } else if (platform === 'facebook') {
+    const match = videoUrl.match(/(?:posts|videos|reel|share\/r|watch\/?\?v=)\/(\d+)/);
+    idKey = match ? match[1] : 'fb_' + crypto.createHash('md5').update(videoUrl).digest('hex').slice(0, 8);
+  } else {
+    idKey = `${platform}_` + crypto.createHash('md5').update(videoUrl).digest('hex').slice(0, 8);
+  }
 
-  // Cache check
+  const cleanQuality = isAudio
+    ? 'audio'
+    : quality.includes('1080')
+    ? '1080p'
+    : quality.includes('360')
+    ? '360p'
+    : '720p';
+
+  const ext = isAudio ? 'mp3' : 'mp4';
+  const outputPath = path.join(tempDir, `${platform}_${idKey}_${cleanQuality}.${ext}`);
+
+  // Cache check: return instant if already merged
   if (fs.existsSync(outputPath)) {
     const stat = fs.statSync(outputPath);
     if (stat.size > 1000) {
@@ -42,13 +80,56 @@ async function ensureYouTubeMerged(videoUrl: string, quality: string = '360p'): 
   }
 
   return new Promise((resolve, reject) => {
-    const formatSpec = quality === '720p' ? '298+140/134+140/b' : '134+140/b';
-    const proc = spawn(ytBinary, [
-      '-f', formatSpec,
-      '-o', outputPath,
-      '--no-playlist',
-      videoUrl,
-    ]);
+    let args: string[] = [];
+
+    if (isAudio) {
+      args = [
+        '-x',
+        '--audio-format', 'mp3',
+        '--no-playlist',
+        '-o', outputPath,
+        videoUrl,
+      ];
+    } else if (platform === 'youtube') {
+      let formatSpec = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best';
+      if (cleanQuality === '1080p') {
+        formatSpec = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+      } else if (cleanQuality === '360p') {
+        formatSpec = '134+140/bestvideo[height<=360]+bestaudio/best';
+      }
+      args = [
+        '-f', formatSpec,
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '-o', outputPath,
+        videoUrl,
+      ];
+    } else if (platform === 'facebook') {
+      let formatSpec = 'hd/best[height<=720]/best';
+      if (cleanQuality === '1080p') {
+        formatSpec = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+      } else if (cleanQuality === '360p') {
+        formatSpec = 'sd/best[height<=360]/best';
+      }
+      args = [
+        '-f', formatSpec,
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '-o', outputPath,
+        videoUrl,
+      ];
+    } else {
+      // General platform
+      args = [
+        '-f', 'best',
+        '--merge-output-format', 'mp4',
+        '--no-playlist',
+        '-o', outputPath,
+        videoUrl,
+      ];
+    }
+
+    const proc = spawn(ytBinary, args);
 
     proc.on('close', (code) => {
       if (code === 0 && fs.existsSync(outputPath)) {
@@ -66,10 +147,11 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get('url');
   const sourcePlatform = searchParams.get('platform') || '';
+  const qualityParam = searchParams.get('quality') || '720p';
   const rawFilename = searchParams.get('filename') || 'video.mp4';
-  const isAudio = rawFilename.endsWith('.mp3');
+  const isAudio = rawFilename.endsWith('.mp3') || qualityParam === 'mp3' || qualityParam.toLowerCase().includes('audio');
   const ext = isAudio ? 'mp3' : 'mp4';
-  const { ascii: asciiFilename, utf8: utf8Filename } = getCleanFilename(rawFilename, ext);
+  const { ascii: asciiFilename, utf8: utf8Filename } = getCleanFilename(rawFilename, ext, sourcePlatform);
 
   if (!targetUrl) {
     return NextResponse.json({ error: 'Target URL is required.' }, { status: 400 });
@@ -77,13 +159,19 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
 
   const contentType = isAudio ? 'audio/mpeg' : 'video/mp4';
 
-  // 1. YouTube Merged Handler (Local yt-dlp + ffmpeg)
-  const isYouTube = sourcePlatform === 'youtube' || targetUrl.includes('youtube.com') || targetUrl.includes('youtu.be') || targetUrl.includes('googlevideo.com');
+  // 1. High-Speed Local Engine (YouTube & Facebook Muxing / MP3)
+  const isLocalEngine =
+    targetUrl === 'local_merge' ||
+    targetUrl === 'local' ||
+    sourcePlatform === 'youtube' ||
+    sourcePlatform === 'facebook' ||
+    targetUrl.includes('youtube.com') ||
+    targetUrl.includes('youtu.be');
 
-  if (isYouTube && !isAudio) {
+  if (isLocalEngine) {
     try {
       const origUrl = searchParams.get('origUrl') || targetUrl;
-      const filePath = await ensureYouTubeMerged(origUrl, '360p');
+      const filePath = await ensureLocalMerged(origUrl, sourcePlatform, qualityParam, isAudio);
       const stat = fs.statSync(filePath);
       const totalSize = stat.size;
 
@@ -126,11 +214,11 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
         headers: baseHeaders,
       });
     } catch (err) {
-      console.warn('Local YouTube merge failed, falling back to direct stream:', err);
+      console.warn('Local merge failed, attempting direct stream fallback:', err);
     }
   }
 
-  // 2. Generic Proxy for Remote Streams (TikTok, X, Facebook, Audio)
+  // 2. High-Speed Direct Proxy for Remote Streams (TikTok, Twitter/X)
   try {
     const fetchHeaders: Record<string, string> = {
       'User-Agent':
@@ -145,7 +233,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     if (isHead) {
       const headRes = await fetch(targetUrl, { method: 'HEAD', headers: fetchHeaders });
       const respHeaders: Record<string, string> = {
-        'Content-Type': headRes.headers.get('content-type') || contentType,
+        'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
         'Accept-Ranges': 'bytes',
       };
@@ -163,7 +251,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     }
 
     const respHeaders: Record<string, string> = {
-      'Content-Type': mediaResponse.headers.get('content-type') || contentType,
+      'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-cache',
