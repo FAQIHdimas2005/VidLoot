@@ -20,7 +20,8 @@
     "react-dom": "^19.0.0",
     "snapsave-media-downloader": "^2.5.1",
     "tailwind-merge": "^3.0.1",
-    "youtubei.js": "^18.2.0"
+    "youtubei.js": "^18.2.0",
+    "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",

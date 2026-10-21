@@ -380,11 +380,19 @@ export default function DownloaderForm({
               {/* Download Buttons List */}
               <div className="pt-2 space-y-2">
                 {result.medias.map((media, idx) => {
+                  const cleanTitle = (result.title || `VidLoot_${result.platform}`)
+                    .replace(/[/\\?%*:|"<>]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 100);
+
+                  const filename = `${cleanTitle || 'video'}.${media.format}`;
+
                   const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(
                     media.url
-                  )}&filename=${encodeURIComponent(
-                    `VidLoot_${result.platform}_${idx + 1}.${media.format}`
-                  )}`;
+                  )}&origUrl=${encodeURIComponent(url)}&platform=${encodeURIComponent(
+                    result.platform
+                  )}&filename=${encodeURIComponent(filename)}`;
 
                   const isAudio = media.format === "mp3";
 
@@ -392,7 +400,7 @@ export default function DownloaderForm({
                     <a
                       key={idx}
                       href={proxyUrl}
-                      download
+                      download={filename}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md group ${
                         idx === 0
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"

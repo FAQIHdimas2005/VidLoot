@@ -30,4 +30,8 @@ next-env.d.ts
 
 # Scratch
 scratch/
+.temp-downloads/
+bin/
+
+
 
