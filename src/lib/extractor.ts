@@ -1,28 +1,5 @@
 import { PlatformType, VideoExtractionResult, DownloadMedia } from './types';
-
-export function detectPlatform(url: string): PlatformType {
-  const trimmed = url.trim().toLowerCase();
-  if (trimmed.includes('tiktok.com') || trimmed.includes('douyin.com')) {
-    return 'tiktok';
-  }
-  if (trimmed.includes('instagram.com')) {
-    return 'instagram';
-  }
-  if (trimmed.includes('twitter.com') || trimmed.includes('x.com')) {
-    return 'twitter';
-  }
-  if (
-    trimmed.includes('facebook.com') ||
-    trimmed.includes('fb.watch') ||
-    trimmed.includes('fb.com')
-  ) {
-    return 'facebook';
-  }
-  if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
-    return 'youtube';
-  }
-  return 'unknown';
-}
+import { detectPlatform } from './platform';
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);

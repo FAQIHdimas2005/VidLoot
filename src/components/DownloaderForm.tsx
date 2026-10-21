@@ -16,7 +16,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { PlatformType, VideoExtractionResult } from "@/lib/types";
-import { detectPlatform } from "@/lib/extractor";
+import { detectPlatform } from "@/lib/platform";
 
 interface DownloaderFormProps {
   initialPlatform?: PlatformType;

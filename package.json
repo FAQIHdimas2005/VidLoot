@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "btch-downloader": "^6.4.0",
     "clsx": "^2.1.1",
     "instagram-url-direct": "^2.0.7",
