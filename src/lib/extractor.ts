@@ -444,6 +444,80 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
   return null;
 }
 
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return '';
+      }
+    })
+    .replace(/&#([0-9]+);/g, (_, dec) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10));
+      } catch {
+        return '';
+      }
+    })
+    .replace(/&quot;/g, '"')
+    .replace(/&#x2022;/g, '•')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+async function getInstagramMetadata(url: string): Promise<{ title?: string; author?: string; thumbnail?: string }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Twitterbot/1.0',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
+    if (!res.ok) return {};
+    const text = await res.text();
+
+    const ogTitle = text.match(/property="og:title"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:title"/i);
+    const ogDesc = text.match(/property="og:description"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:description"/i);
+    const ogImage = text.match(/property="og:image"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:image"/i);
+
+    let rawTitle = ogTitle ? decodeHtmlEntities(ogTitle[1]) : '';
+
+    const matchQuote = rawTitle.match(/on Instagram:\s*["“](.*?)["”]?$/s);
+    if (matchQuote && matchQuote[1]) {
+      const caption = matchQuote[1].replace(/[\r\n]+/g, ' ').trim();
+      const authorPart = rawTitle.split(/on Instagram:/i)[0].trim();
+      return {
+        title: caption.slice(0, 120),
+        author: authorPart || undefined,
+        thumbnail: ogImage ? ogImage[1] : undefined,
+      };
+    }
+
+    if (ogDesc) {
+      const cleanDesc = decodeHtmlEntities(ogDesc[1]);
+      const matchDesc = cleanDesc.match(/:\s*["“](.*?)["”]?$/s);
+      if (matchDesc && matchDesc[1]) {
+        return {
+          title: matchDesc[1].replace(/[\r\n]+/g, ' ').trim().slice(0, 120),
+          thumbnail: ogImage ? ogImage[1] : undefined,
+        };
+      }
+    }
+
+    return {
+      title: rawTitle ? rawTitle.slice(0, 120) : undefined,
+      thumbnail: ogImage ? ogImage[1] : undefined,
+    };
+  } catch (err) {
+    console.warn('Instagram OGP error:', err);
+    return {};
+  }
+}
+
 // 5. INSTAGRAM EXTRACTOR
 async function extractInstagram(url: string): Promise<VideoExtractionResult | null> {
   // Method A: Cookie-based yt-dlp if session cookie is configured
@@ -525,10 +599,14 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
     }
   }
 
-  // Method C: snapsave fallback
+  // Method C: snapsave media extraction + Open Graph metadata
   try {
     const { snapsave } = await import('snapsave-media-downloader');
-    const snapRes = await snapsave(url);
+    const [snapRes, meta] = await Promise.all([
+      snapsave(url).catch(() => null),
+      getInstagramMetadata(url).catch(() => null),
+    ]);
+
     if (snapRes && snapRes.success && snapRes.data?.media?.length) {
       const medias: DownloadMedia[] = snapRes.data.media.map((m: any, idx: number) => ({
         quality: m.resolution || (idx === 0 ? '1080p' : '720p'),
@@ -537,11 +615,25 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
         label: `Download Instagram Video (${m.resolution || 'HD'})`,
       }));
 
+      // Add audio option
+      if (medias.length > 0) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: medias[0].url,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
+
+      const title = meta?.title || snapRes.data.description || 'Instagram Reel';
+      const thumbnail = meta?.thumbnail || snapRes.data.media[0]?.thumbnail || snapRes.data.preview;
+
       return {
         success: true,
         platform: 'instagram',
-        title: snapRes.data.description || 'Instagram Reel',
-        thumbnail: snapRes.data.preview,
+        title: title || 'Instagram Reel',
+        author: meta?.author || undefined,
+        thumbnail,
         medias,
       };
     }
