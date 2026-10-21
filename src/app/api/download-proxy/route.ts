@@ -232,11 +232,24 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
 
     if (isHead) {
       const headRes = await fetch(targetUrl, { method: 'HEAD', headers: fetchHeaders });
+      const upstreamType = headRes.headers.get('content-type') || '';
+      const isImage =
+        upstreamType.startsWith('image/') ||
+        Boolean(targetUrl.match(/\.(jpg|jpeg|png|webp)/i)) ||
+        targetUrl.includes('/thumb?') ||
+        targetUrl.includes('thumb');
+
+      const finalContentType = isImage
+        ? (upstreamType.startsWith('image/') ? upstreamType : 'image/jpeg')
+        : (upstreamType || contentType);
+
       const respHeaders: Record<string, string> = {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
+        'Content-Type': finalContentType,
         'Accept-Ranges': 'bytes',
       };
+      if (!isImage) {
+        respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
+      }
       const len = headRes.headers.get('content-length');
       if (len) respHeaders['Content-Length'] = len;
 
@@ -250,12 +263,26 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       return NextResponse.redirect(targetUrl);
     }
 
+    const upstreamType = mediaResponse.headers.get('content-type') || '';
+    const isImage =
+      upstreamType.startsWith('image/') ||
+      Boolean(targetUrl.match(/\.(jpg|jpeg|png|webp)/i)) ||
+      targetUrl.includes('/thumb?') ||
+      targetUrl.includes('thumb');
+
+    const finalContentType = isImage
+      ? (upstreamType.startsWith('image/') ? upstreamType : 'image/jpeg')
+      : (upstreamType || contentType);
+
     const respHeaders: Record<string, string> = {
-      'Content-Type': contentType,
-      'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`,
+      'Content-Type': finalContentType,
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': isImage ? 'public, max-age=86400' : 'no-cache',
     };
+
+    if (!isImage) {
+      respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
+    }
 
     const clen = mediaResponse.headers.get('content-length');
     if (clen) respHeaders['Content-Length'] = clen;

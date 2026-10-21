@@ -483,6 +483,7 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
     const ogTitle = text.match(/property="og:title"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:title"/i);
     const ogDesc = text.match(/property="og:description"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:description"/i);
     const ogImage = text.match(/property="og:image"\s+content="([^"]+)"/i) || text.match(/content="([^"]+)"\s+property="og:image"/i);
+    const cleanImage = ogImage ? ogImage[1].replace(/&amp;/g, '&') : undefined;
 
     let rawTitle = ogTitle ? decodeHtmlEntities(ogTitle[1]) : '';
 
@@ -493,7 +494,7 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
       return {
         title: caption.slice(0, 120),
         author: authorPart || undefined,
-        thumbnail: ogImage ? ogImage[1] : undefined,
+        thumbnail: cleanImage,
       };
     }
 
@@ -503,14 +504,14 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
       if (matchDesc && matchDesc[1]) {
         return {
           title: matchDesc[1].replace(/[\r\n]+/g, ' ').trim().slice(0, 120),
-          thumbnail: ogImage ? ogImage[1] : undefined,
+          thumbnail: cleanImage,
         };
       }
     }
 
     return {
       title: rawTitle ? rawTitle.slice(0, 120) : undefined,
-      thumbnail: ogImage ? ogImage[1] : undefined,
+      thumbnail: cleanImage,
     };
   } catch (err) {
     console.warn('Instagram OGP error:', err);
@@ -626,7 +627,8 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
       }
 
       const title = meta?.title || snapRes.data.description || 'Instagram Reel';
-      const thumbnail = meta?.thumbnail || snapRes.data.media[0]?.thumbnail || snapRes.data.preview;
+      const rawThumbnail = snapRes.data.media[0]?.thumbnail || meta?.thumbnail || snapRes.data.preview;
+      const thumbnail = rawThumbnail ? rawThumbnail.replace(/&amp;/g, '&') : undefined;
 
       return {
         success: true,

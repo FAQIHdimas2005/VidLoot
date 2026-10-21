@@ -37,6 +37,7 @@ export default function DownloaderForm({
   const [isExtracting, setIsExtracting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<VideoExtractionResult | null>(null);
+  const [thumbError, setThumbError] = useState(false);
 
   // Rewarded Countdown Ad Modal states
   const [showAdModal, setShowAdModal] = useState(false);
@@ -90,6 +91,7 @@ export default function DownloaderForm({
     setDetectedPlatform(initialPlatform || "unknown");
     setErrorMsg(null);
     setResult(null);
+    setThumbError(false);
     setShowAdModal(false);
     setPendingResult(null);
     setExtractionDone(false);
@@ -146,6 +148,7 @@ export default function DownloaderForm({
   const handleClaimDownload = () => {
     if (pendingResult) {
       setResult(pendingResult);
+      setThumbError(false);
       setShowAdModal(false);
       setPendingResult(null);
       // Smooth scroll to results
@@ -338,23 +341,36 @@ export default function DownloaderForm({
         >
           <div className="flex flex-col md:flex-row gap-5 items-start">
             {/* Thumbnail Preview */}
-            {result.thumbnail && (
-              <div className="relative w-full md:w-56 h-40 sm:h-48 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shrink-0 group">
+            <div className="relative w-full md:w-56 h-40 sm:h-48 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shrink-0 group">
+              {result.thumbnail && !thumbError ? (
                 <img
-                  src={result.thumbnail}
+                  src={
+                    result.platform === "instagram"
+                      ? `/api/download-proxy?url=${encodeURIComponent(result.thumbnail)}`
+                      : result.thumbnail
+                  }
                   alt={result.title || "Video Preview"}
+                  referrerPolicy="no-referrer"
+                  onError={() => setThumbError(true)}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/75 backdrop-blur-sm text-white">
-                  {result.platform}
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 text-slate-400 p-4 text-center">
+                  <Video className="w-8 h-8 text-blue-400/80 mb-2" />
+                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                    {result.platform} Preview
+                  </span>
                 </div>
-                {result.duration && (
-                  <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/75 backdrop-blur-sm text-white">
-                    {result.duration}
-                  </div>
-                )}
+              )}
+              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/75 backdrop-blur-sm text-white">
+                {result.platform}
               </div>
-            )}
+              {result.duration && (
+                <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/75 backdrop-blur-sm text-white">
+                  {result.duration}
+                </div>
+              )}
+            </div>
 
             {/* Video Details & Download Buttons */}
             <div className="flex-1 w-full space-y-3">
