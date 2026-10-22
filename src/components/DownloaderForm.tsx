@@ -146,9 +146,9 @@ export default function DownloaderForm({
   };
 
   const handleClaimDownload = () => {
-    // Open Monetag / Adsterra SmartLink if configured in env
+    // Open Monetag / Adsterra SmartLink
     if (typeof window !== "undefined") {
-      const smartLink = process.env.NEXT_PUBLIC_MONETAG_DIRECT_LINK;
+      const smartLink = process.env.NEXT_PUBLIC_MONETAG_DIRECT_LINK || "https://uplcm.com/4/12092875";
       if (smartLink) {
         window.open(smartLink, "_blank", "noopener,noreferrer");
       }
@@ -291,14 +291,25 @@ export default function DownloaderForm({
             </p>
 
             {/* AD BANNER SLOT (300x250) */}
-            <div className="w-full my-4 p-4 rounded-2xl bg-slate-950/90 border border-dashed border-slate-700 flex flex-col items-center justify-center min-h-[250px] relative overflow-hidden">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mb-2">
-                Sponsored Advertisement
+            <a
+              href="https://uplcm.com/4/12092875"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full my-4 p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950/30 to-slate-950 border border-slate-700/80 hover:border-blue-500/50 flex flex-col items-center justify-center min-h-[220px] relative overflow-hidden group transition-all cursor-pointer"
+            >
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
+                Sponsored Partner
               </span>
-              <div className="text-xs text-slate-400 text-center max-w-xs px-2">
-                Your ad banner (Adsterra / Monetag / A-Ads 300x250) will display here and monetize every single download request.
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-6 h-6 text-yellow-400" />
               </div>
-            </div>
+              <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">
+                Support VidLoot Free Service
+              </span>
+              <p className="text-[11px] text-slate-400 text-center max-w-xs px-2 mt-1">
+                Click here to visit our sponsor & support unthrottled server bandwidth.
+              </p>
+            </a>
 
             {/* Status & Countdown Bar */}
             <div className="w-full space-y-3">
