@@ -11,6 +11,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://vid-loot.vercel.app"),
   title: "VidLoot - Universal Social Media Video Downloader (TikTok, IG, X, FB, YouTube)",
   description:
     "Fast, free online social media video downloader. Download TikTok videos without watermark, Instagram Reels, X/Twitter videos, Facebook clips, and YouTube Shorts in Full HD MP4 & MP3.",
@@ -32,7 +33,27 @@ export const metadata: Metadata = {
     "free video downloader",
   ],
   authors: [{ name: "VidLoot Global Team" }],
-  robots: "index, follow",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://vid-loot.vercel.app",
+    title: "VidLoot - Free Video Downloader Without Watermark",
+    description: "Download TikTok, Instagram Reels, YouTube Shorts, X/Twitter, and Facebook videos in high quality MP4 & MP3.",
+    siteName: "VidLoot",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VidLoot - Free Video Downloader Without Watermark",
+    description: "Download TikTok, Instagram Reels, YouTube Shorts, X/Twitter, and Facebook videos in high quality MP4 & MP3.",
+  },
   other: {
     monetag: "069c2f1cb6537f23160c0d5a85db8195",
   },
