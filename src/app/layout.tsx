@@ -47,6 +47,12 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="monetag" content="069c2f1cb6537f23160c0d5a85db8195" />
+        <script
+          src="https://quge5.com/88/tag.min.js"
+          data-zone="300031"
+          async
+          data-cfasync="false"
+        />
       </head>
       <body className="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
         <Navbar />

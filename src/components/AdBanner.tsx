@@ -33,30 +33,21 @@ export default function AdBanner({
     }
   }, [adScriptUrl, adHtmlContent]);
 
-  // If no script/HTML is configured yet, display a styled placeholder slot
-  const isAdConfigured = Boolean(adScriptUrl || adHtmlContent);
+  // If no specific script/HTML is configured, return null to keep the page clean and polished
+  // (Monetag MultiTag automatically handles in-page push, vignette, and native ads globally)
+  if (!adScriptUrl && !adHtmlContent) {
+    return null;
+  }
 
   return (
     <div
       className={`w-full flex flex-col items-center justify-center my-4 transition-all ${className}`}
     >
       <div className="w-full max-w-4xl px-2">
-        {isAdConfigured ? (
-          <div
-            ref={containerRef}
-            className="w-full flex justify-center items-center overflow-hidden"
-          />
-        ) : (
-          <div className="w-full min-h-[90px] border border-dashed border-slate-700 bg-slate-900/60 rounded-xl flex flex-col items-center justify-center p-3 text-center text-slate-400 group hover:border-slate-600 transition-colors">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              Ad Placement Slot ({slot.toUpperCase()})
-            </div>
-            <p className="text-xs text-slate-400 max-w-md">
-              Ready for ad integration (Adsterra / Monetag / A-Ads). Responsive banner renders automatically when ad script is provided.
-            </p>
-          </div>
-        )}
+        <div
+          ref={containerRef}
+          className="w-full flex justify-center items-center overflow-hidden"
+        />
       </div>
     </div>
   );
