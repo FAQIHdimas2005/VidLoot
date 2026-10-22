@@ -33,6 +33,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "VidLoot Global Team" }],
   robots: "index, follow",
+  other: {
+    monetag: "069c2f1cb6537f23160c0d5a85db8195",
+  },
 };
 
 export default function RootLayout({
@@ -42,6 +45,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <meta name="monetag" content="069c2f1cb6537f23160c0d5a85db8195" />
+      </head>
       <body className="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
         <Navbar />
         <main className="flex-1 w-full">{children}</main>
