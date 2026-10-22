@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   title: "VidLoot - Universal Social Media Video Downloader (TikTok, IG, X, FB, YouTube)",
   description:
     "Fast, free online social media video downloader. Download TikTok videos without watermark, Instagram Reels, X/Twitter videos, Facebook clips, and YouTube Shorts in Full HD MP4 & MP3.",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon.svg",
+  },
   keywords: [
     "vidloot",
     "tiktok downloader without watermark",
