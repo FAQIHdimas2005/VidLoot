@@ -64,6 +64,34 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://vid-loot.vercel.app/#website",
+        "url": "https://vid-loot.vercel.app/",
+        "name": "VidLoot",
+        "alternateName": ["VidLoot Downloader", "VidLoot App", "VidLoot Video Downloader"],
+        "description":
+          "Fast, free online social media video downloader for TikTok, Instagram Reels, YouTube Shorts, X/Twitter, and Facebook clips in Full HD MP4 & MP3.",
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://vid-loot.vercel.app/#webapp",
+        "name": "VidLoot",
+        "url": "https://vid-loot.vercel.app/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "All",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+        },
+      },
+    ],
+  };
+
   return (
     <html lang="en">
       <head>
@@ -73,6 +101,10 @@ export default function RootLayout({
           data-zone="300031"
           async
           data-cfasync="false"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
       <body className="min-h-screen flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
