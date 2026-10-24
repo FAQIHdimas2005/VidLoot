@@ -16,6 +16,8 @@ import {
   Clock,
   ArrowRight,
   ShieldCheck,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { PlatformType, VideoExtractionResult } from "@/lib/types";
 import { detectPlatform } from "@/lib/platform";
@@ -46,6 +48,14 @@ export default function DownloaderForm({
   const [extractionDone, setExtractionDone] = useState(false);
   const [extractionFailed, setExtractionFailed] = useState(false);
   const [pendingResult, setPendingResult] = useState<VideoExtractionResult | null>(null);
+
+  // Region-Lock Modal states
+  const [showRegionLockModal, setShowRegionLockModal] = useState(false);
+  const [regionLockData, setRegionLockData] = useState<{
+    platform: PlatformType;
+    reason: string;
+    message: string;
+  } | null>(null);
 
   // Countdown timer effect
   useEffect(() => {
@@ -94,6 +104,8 @@ export default function DownloaderForm({
     setResult(null);
     setThumbError(false);
     setShowAdModal(false);
+    setShowRegionLockModal(false);
+    setRegionLockData(null);
     setPendingResult(null);
     setExtractionDone(false);
     setExtractionFailed(false);
@@ -111,6 +123,8 @@ export default function DownloaderForm({
     setErrorMsg(null);
     setResult(null);
     setPendingResult(null);
+    setShowRegionLockModal(false);
+    setRegionLockData(null);
     setCountdown(5);
     setExtractionDone(false);
     setExtractionFailed(false);
@@ -130,6 +144,17 @@ export default function DownloaderForm({
 
       if (!res.ok || !data.success) {
         setExtractionFailed(true);
+        if (data.isRegionLocked) {
+          setShowAdModal(false);
+          setShowRegionLockModal(true);
+          setRegionLockData({
+            platform: data.platform,
+            reason: data.regionLockReason || "HIGH_RISK_COUNTRY_VIDEO",
+            message:
+              data.error ||
+              "Video ini dibatasi khusus wilayah domestik Jepang oleh Niconico.",
+          });
+        }
         setErrorMsg(
           data.error ||
             "Unable to retrieve video. Please verify the link is public and accessible."
@@ -352,6 +377,77 @@ export default function DownloaderForm({
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REGION-LOCK ALERT POPUP MODAL */}
+      {showRegionLockModal && regionLockData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-amber-500/10 flex flex-col items-center text-center">
+            {/* Top Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowRegionLockModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header Badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 mb-4 shadow-sm">
+              <span className="text-sm">🇯🇵</span>
+              <span>Region-Lock Detected (Japan Only)</span>
+            </div>
+
+            {/* Icon */}
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-4 shadow-inner">
+              <Globe className="w-8 h-8 text-amber-400 animate-pulse" />
+            </div>
+
+            {/* Title & Subtitle */}
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              Konten Dibatasi Khusus Jepang
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1.5 max-w-md leading-relaxed">
+              Niconico membatasi penayangan video ini hanya untuk pengunjung di dalam wilayah domestik Jepang.
+            </p>
+
+            {/* Explanation Card */}
+            <div className="w-full my-5 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-left space-y-3">
+              <div className="flex items-center justify-between text-xs border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Status Firewall:</span>
+                <span className="font-mono font-bold text-amber-400 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                  {regionLockData.reason}
+                </span>
+              </div>
+
+              <div className="text-xs text-slate-300 leading-relaxed space-y-2">
+                <p>
+                  Video dengan tema sensitif (seperti <span className="text-amber-300 font-semibold">Ryona</span>, fighting game violence, atau lisensi lokal) dilindungi regulasi hukum internet Jepang.
+                </p>
+                <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-800/40 text-amber-200/90 flex items-start gap-2.5">
+                  <Lock className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                  <span className="text-[11px] leading-relaxed">
+                    Server publik luar negeri dilarang mengakses streaming ini oleh firewall Niconico demi kepatuhan regulasi hak cipta & wilayah.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="w-full flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRegionLockModal(false);
+                  handleClear();
+                }}
+                className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer"
+              >
+                Saya Mengerti (Tutup)
+              </button>
             </div>
           </div>
         </div>

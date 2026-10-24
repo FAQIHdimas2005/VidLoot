@@ -1153,6 +1153,8 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
       const reqHeaders: Record<string, string> = {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        Accept: '*/*',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
         'X-Frontend-Id': '6',
         'X-Frontend-Version': '0',
       };
@@ -1167,11 +1169,39 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
           {
             headers: {
               'User-Agent': reqHeaders['User-Agent'],
+              Accept: '*/*',
+              'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
               'X-Frontend-Id': '6',
               'X-Frontend-Version': '0',
             },
           }
         );
+      }
+
+      if (!res.ok) {
+        try {
+          const errData = await res.json();
+          const reasonCode = errData?.data?.reasonCode || '';
+          if (
+            reasonCode === 'HIGH_RISK_COUNTRY_VIDEO' ||
+            reasonCode === 'DOMESTIC_VIDEO' ||
+            reasonCode === 'COUNTRY_RESTRICTED' ||
+            errData?.meta?.errorCode === 'FORBIDDEN'
+          ) {
+            return {
+              success: false,
+              platform: 'niconico',
+              title: 'Nico Nico Douga (Region-Locked)',
+              medias: [],
+              isRegionLocked: true,
+              regionLockReason: reasonCode || 'HIGH_RISK_COUNTRY_VIDEO',
+              error:
+                'Video ini terkena Region-Lock Jepang (HIGH_RISK_COUNTRY_VIDEO). Niconico membatasi penayangan konten ini khusus untuk penonton di wilayah domestik Jepang.',
+            };
+          }
+        } catch {
+          // ignore
+        }
       }
 
       if (res.ok) {

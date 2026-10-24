@@ -25,4 +25,6 @@ export interface VideoExtractionResult {
   duration?: string;
   medias: DownloadMedia[];
   error?: string;
+  isRegionLocked?: boolean;
+  regionLockReason?: string;
 }
