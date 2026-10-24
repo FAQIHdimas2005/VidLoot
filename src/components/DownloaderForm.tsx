@@ -172,14 +172,6 @@ export default function DownloaderForm({
   };
 
   const handleClaimDownload = () => {
-    // Open Monetag / Adsterra SmartLink
-    if (typeof window !== "undefined") {
-      const smartLink = process.env.NEXT_PUBLIC_MONETAG_DIRECT_LINK || "https://uplcm.com/4/12092875";
-      if (smartLink) {
-        window.open(smartLink, "_blank", "noopener,noreferrer");
-      }
-    }
-
     if (pendingResult) {
       setResult(pendingResult);
       setThumbError(false);
@@ -320,33 +312,38 @@ export default function DownloaderForm({
               Please wait while our servers fetch and process your video in maximum quality.
             </p>
 
-            {/* AD BANNER SLOT (300x250) */}
-            <a
-              href="https://uplcm.com/4/12092875"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full my-4 p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950/30 to-slate-950 border border-slate-700/80 hover:border-blue-500/50 flex flex-col items-center justify-center min-h-[220px] relative overflow-hidden group transition-all cursor-pointer"
-            >
+            {/* ADSTERRA 300x250 BANNER SLOT INSIDE REWARDED MODAL */}
+            <div className="w-full my-4 p-3 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950/30 to-slate-950 border border-slate-700/80 flex flex-col items-center justify-center min-h-[275px] relative overflow-hidden">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
-                Sponsored Partner
+                Sponsored Advertisement
               </span>
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-6 h-6 text-yellow-400" />
+              <div className="relative w-[300px] h-[250px] rounded-xl overflow-hidden bg-slate-900/90 border border-slate-800 flex items-center justify-center">
+                <iframe
+                  title="Sponsored Ad"
+                  width={300}
+                  height={250}
+                  scrolling="no"
+                  frameBorder={0}
+                  className="w-[300px] h-[250px] border-0 relative z-10"
+                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;width:300px;height:250px;overflow:hidden;background:transparent;display:flex;align-items:center;justify-content:center;}</style></head><body><script type="text/javascript">atOptions={'key':'df5f0c6c4623522036aca83adf959fb8','format':'iframe','height':250,'width':300,'params':{}};</script><script type="text/javascript" src="https://bellnewyork.org/22/df5f0c6c4623522036aca83adf959fb8"></script></body></html>`}
+                />
               </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">
-                Support VidLoot Free Service
-              </span>
-              <p className="text-[11px] text-slate-400 text-center max-w-xs px-2 mt-1">
-                Click here to visit our sponsor & support unthrottled server bandwidth.
-              </p>
-            </a>
+            </div>
 
-            {/* Status & Countdown Bar */}
+            {/* Status & Countdown Progress Bar */}
             <div className="w-full space-y-3">
               {countdown > 0 ? (
-                <div className="w-full py-3.5 px-4 rounded-xl bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-slate-700">
-                  <Clock className="w-4 h-4 text-blue-400 animate-spin" />
-                  <span>Your download unlocks in {countdown} seconds...</span>
+                <div className="space-y-2">
+                  <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 ease-linear"
+                      style={{ width: `${((5 - countdown) / 5) * 100}%` }}
+                    />
+                  </div>
+                  <div className="w-full py-3.5 px-4 rounded-xl bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-slate-700">
+                    <Clock className="w-4 h-4 text-blue-400 animate-spin" />
+                    <span>Your download unlocks in {countdown} seconds...</span>
+                  </div>
                 </div>
               ) : isExtracting ? (
                 <div className="w-full py-3.5 px-4 rounded-xl bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border border-slate-700">

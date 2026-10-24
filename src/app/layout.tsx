@@ -97,12 +97,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <meta name="monetag" content="069c2f1cb6537f23160c0d5a85db8195" />
         <script
-          src="https://quge5.com/88/tag.min.js"
-          data-zone="300031"
-          async
           data-cfasync="false"
+          src="https://bellnewyork.org/14/6f3ac60432bf9d49624493e549983266"
+          async
         />
         <script
           type="application/ld+json"
