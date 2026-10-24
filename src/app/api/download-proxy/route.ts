@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
@@ -49,14 +50,43 @@ const BUSY_MESSAGE = 'Too Many Requests - Server is busy processing media.';
 let activeMerges = 0;
 const inFlightMerges = new Map<string, Promise<string>>();
 
+function getTempDir(): string {
+  // On Vercel/Linux serverless, process.cwd() (/var/task) is read-only; use os.tmpdir() (/tmp)
+  if (process.platform === 'win32' && !process.env.VERCEL) {
+    return path.join(process.cwd(), TEMP_DIR_NAME);
+  }
+  return path.join(os.tmpdir(), TEMP_DIR_NAME);
+}
+
+function resolveFfmpegBinary(): string {
+  const localBin = path.join(
+    process.cwd(),
+    'bin',
+    process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  );
+  if (fs.existsSync(localBin)) {
+    return localBin;
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const staticFfmpeg = require('ffmpeg-static');
+    if (typeof staticFfmpeg === 'string' && fs.existsSync(staticFfmpeg)) {
+      return staticFfmpeg;
+    }
+  } catch {
+    // fallback to system PATH
+  }
+  return 'ffmpeg';
+}
+
 function cleanupOldTempFiles(): void {
   try {
-    const tempDir = path.join(process.cwd(), TEMP_DIR_NAME);
+    const tempDir = getTempDir();
     if (!fs.existsSync(tempDir)) return;
     const now = Date.now();
     for (const entry of fs.readdirSync(tempDir)) {
       try {
-        if (!/\.(mp4|mp3|webm|part|ytdl)$/i.test(entry)) continue;
+        if (!/\.(mp4|mp3|m4a|webm|part|ytdl)$/i.test(entry)) continue;
         const filePath = path.join(tempDir, entry);
         const stat = fs.statSync(filePath);
         if (stat.isFile() && now - stat.mtimeMs > TEMP_MAX_AGE_MS) {
@@ -75,6 +105,292 @@ function isMergeBusyError(err: unknown): boolean {
   return (err as { status?: number })?.status === 429;
 }
 
+/**
+ * Pure-Node.js Niconico Domand HLS (fMP4 + AES-128-CBC) Decryptor & FFmpeg Remuxer.
+ * Works natively on both Vercel Linux Serverless (via ffmpeg-static) and Windows/Docker.
+ */
+async function mergeNicoNicoDomand(
+  originalUrl: string,
+  outputPath: string,
+  cleanQuality: string,
+  isAudio: boolean,
+  tempDir: string
+): Promise<string> {
+  const idMatch = originalUrl.match(/(?:watch\/|nico\.ms\/)([a-z]{2}\d+|\d+)/i);
+  if (!idMatch) {
+    throw new Error('Could not parse Niconico video ID from URL.');
+  }
+  const nicoId = idMatch[1];
+  const trackId = `AAAAAAAAAA_${Date.now()}`;
+  const ua =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+  const extractCookies = (res: Response): string[] => {
+    const rawList: string[] =
+      typeof (res.headers as any).getSetCookie === 'function'
+        ? (res.headers as any).getSetCookie()
+        : res.headers.get('set-cookie')
+        ? [res.headers.get('set-cookie')!]
+        : [];
+    return rawList.map((c) => c.split(';')[0]).filter(Boolean);
+  };
+
+  // 1. Fetch Watch API v3_guest (or fallback to v3)
+  let watchRes = await fetch(
+    `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+    {
+      headers: {
+        'User-Agent': ua,
+        Accept: 'application/json',
+        'X-Frontend-Id': '6',
+        'X-Frontend-Version': '0',
+      },
+    }
+  );
+  if (!watchRes.ok) {
+    watchRes = await fetch(
+      `https://www.nicovideo.jp/api/watch/v3/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+      {
+        headers: {
+          'User-Agent': ua,
+          Accept: 'application/json',
+          'X-Frontend-Id': '6',
+          'X-Frontend-Version': '0',
+        },
+      }
+    );
+  }
+  if (!watchRes.ok) {
+    throw new Error(`Niconico Watch API returned HTTP ${watchRes.status}`);
+  }
+
+  const baseCookies = extractCookies(watchRes);
+  const watchJson = await watchRes.json();
+  const domand = watchJson?.data?.media?.domand;
+  if (!domand || !domand.accessRightKey) {
+    throw new Error('Niconico Domand media data or accessRightKey is missing.');
+  }
+
+  const availVideos: any[] = Array.isArray(domand.videos)
+    ? domand.videos.filter((v: any) => v && v.isAvailable)
+    : [];
+  const availAudios: any[] = Array.isArray(domand.audios)
+    ? domand.audios.filter((a: any) => a && a.isAvailable)
+    : [];
+
+  if (availVideos.length === 0 || availAudios.length === 0) {
+    throw new Error('No available video or audio streams returned by Niconico Domand.');
+  }
+
+  const targetHeight = cleanQuality.includes('1080')
+    ? 1080
+    : cleanQuality.includes('480')
+    ? 480
+    : cleanQuality.includes('360')
+    ? 360
+    : 720;
+
+  const selectedVideo =
+    availVideos.find((v) => String(v.id).includes(`${targetHeight}p`)) ||
+    availVideos.find((v) => Number(v.height) <= targetHeight) ||
+    availVideos[0];
+  const selectedAudio = availAudios[0];
+
+  // 2. Request Domand HLS Access Right
+  const accessRes = await fetch(
+    `https://nvapi.nicovideo.jp/v1/watch/${nicoId}/access-rights/hls?actionTrackId=${encodeURIComponent(trackId)}`,
+    {
+      method: 'POST',
+      headers: {
+        'User-Agent': ua,
+        'Content-Type': 'application/json',
+        'X-Access-Right-Key': domand.accessRightKey,
+        'X-Request-With': 'https://www.nicovideo.jp',
+        'X-Frontend-Id': '6',
+        'X-Frontend-Version': '0',
+        Origin: 'https://www.nicovideo.jp',
+        Referer: 'https://www.nicovideo.jp/',
+        Cookie: baseCookies.join('; '),
+      },
+      body: JSON.stringify({
+        outputs: [[selectedVideo.id, selectedAudio.id]],
+      }),
+    }
+  );
+
+  if (!accessRes.ok) {
+    throw new Error(`Niconico nvapi access-rights failed with HTTP ${accessRes.status}`);
+  }
+
+  const allCookies = [...baseCookies, ...extractCookies(accessRes)].join('; ');
+  const accessJson = await accessRes.json();
+  const masterM3u8Url: string | undefined = accessJson?.data?.contentUrl;
+  if (!masterM3u8Url) {
+    throw new Error('Niconico nvapi did not return a master M3U8 URL.');
+  }
+
+  // 3. Parse Master M3U8
+  const masterText = await (
+    await fetch(masterM3u8Url, {
+      headers: { 'User-Agent': ua, Cookie: allCookies },
+    })
+  ).text();
+
+  let audioPlaylistUrl = '';
+  let videoPlaylistUrl = '';
+  for (const rawLine of masterText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
+      const m = line.match(/URI="([^"]+)"/);
+      if (m) audioPlaylistUrl = new URL(m[1], masterM3u8Url).href;
+    } else if (!line.startsWith('#') && !videoPlaylistUrl) {
+      videoPlaylistUrl = new URL(line, masterM3u8Url).href;
+    }
+  }
+
+  if (!audioPlaylistUrl || (!isAudio && !videoPlaylistUrl)) {
+    throw new Error('Failed to locate video/audio variant playlists in Niconico master M3U8.');
+  }
+
+  // 4. Download & AES-128-CBC Decrypt fMP4 Stream
+  const downloadAndDecryptStream = async (playlistUrl: string, destFile: string) => {
+    const m3u8Text = await (
+      await fetch(playlistUrl, {
+        headers: { 'User-Agent': ua, Cookie: allCookies },
+      })
+    ).text();
+
+    let initUrl = '';
+    let keyUrl = '';
+    let ivHex = '';
+    let mediaSequence = 0;
+    const segUrls: string[] = [];
+
+    for (const rawLine of m3u8Text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      if (line.startsWith('#EXT-X-MEDIA-SEQUENCE:')) {
+        mediaSequence = parseInt(line.split(':')[1] || '0', 10) || 0;
+      } else if (line.startsWith('#EXT-X-MAP:')) {
+        const m = line.match(/URI="([^"]+)"/);
+        if (m) initUrl = new URL(m[1], playlistUrl).href;
+      } else if (line.startsWith('#EXT-X-KEY:')) {
+        const km = line.match(/URI="([^"]+)"/);
+        const ivm = line.match(/IV=0x([0-9a-fA-F]+)/);
+        if (km) keyUrl = new URL(km[1], playlistUrl).href;
+        if (ivm) ivHex = ivm[1];
+      } else if (!line.startsWith('#')) {
+        segUrls.push(new URL(line, playlistUrl).href);
+      }
+    }
+
+    if (!initUrl || segUrls.length === 0) {
+      throw new Error('Invalid Niconico fMP4 variant playlist.');
+    }
+
+    const [initBuf, keyBuf] = await Promise.all([
+      fetch(initUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+        .then((r) => r.arrayBuffer())
+        .then((b) => Buffer.from(b)),
+      keyUrl
+        ? fetch(keyUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+            .then((r) => r.arrayBuffer())
+            .then((b) => Buffer.from(b))
+        : Promise.resolve(null),
+    ]);
+
+    const segBuffers: Buffer[] = new Array(segUrls.length);
+    const BATCH_SIZE = 8;
+
+    for (let i = 0; i < segUrls.length; i += BATCH_SIZE) {
+      const batch = segUrls.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (segUrl, idx) => {
+          const segIndex = i + idx;
+          const rawBuf = Buffer.from(
+            await (
+              await fetch(segUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+            ).arrayBuffer()
+          );
+
+          if (keyBuf) {
+            let ivBuf: Buffer;
+            if (ivHex) {
+              ivBuf = Buffer.from(ivHex.padStart(32, '0'), 'hex');
+            } else {
+              ivBuf = Buffer.alloc(16, 0);
+              ivBuf.writeUInt32BE(mediaSequence + segIndex, 12);
+            }
+            const decipher = crypto.createDecipheriv('aes-128-cbc', keyBuf, ivBuf);
+            segBuffers[segIndex] = Buffer.concat([decipher.update(rawBuf), decipher.final()]);
+          } else {
+            segBuffers[segIndex] = rawBuf;
+          }
+        })
+      );
+    }
+
+    fs.writeFileSync(destFile, Buffer.concat([initBuf, ...segBuffers]));
+  };
+
+  const uniqueSuffix = `${nicoId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const tempVideoPath = path.join(tempDir, `nico_vid_${uniqueSuffix}.mp4`);
+  const tempAudioPath = path.join(tempDir, `nico_aud_${uniqueSuffix}.m4a`);
+
+  try {
+    if (isAudio) {
+      await downloadAndDecryptStream(audioPlaylistUrl, tempAudioPath);
+    } else {
+      await Promise.all([
+        downloadAndDecryptStream(videoPlaylistUrl, tempVideoPath),
+        downloadAndDecryptStream(audioPlaylistUrl, tempAudioPath),
+      ]);
+    }
+
+    const ffmpegBin = resolveFfmpegBinary();
+    const ffmpegArgs = isAudio
+      ? ['-y', '-i', tempAudioPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', outputPath]
+      : [
+          '-y',
+          '-i',
+          tempVideoPath,
+          '-i',
+          tempAudioPath,
+          '-c',
+          'copy',
+          '-movflags',
+          '+faststart',
+          outputPath,
+        ];
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(ffmpegBin, ffmpegArgs);
+      let stderrLog = '';
+      proc.stderr.on('data', (chunk) => {
+        stderrLog += chunk.toString();
+      });
+      proc.on('close', (code) => {
+        if (code === 0 && fs.existsSync(outputPath)) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}: ${stderrLog.slice(-300)}`));
+        }
+      });
+      proc.on('error', (err) => reject(err));
+    });
+
+    return outputPath;
+  } finally {
+    if (fs.existsSync(tempVideoPath)) {
+      fs.unlink(tempVideoPath, () => {});
+    }
+    if (fs.existsSync(tempAudioPath)) {
+      fs.unlink(tempAudioPath, () => {});
+    }
+  }
+}
+
 async function ensureLocalMerged(
   originalUrl: string,
   rawPlatform: string,
@@ -82,7 +398,7 @@ async function ensureLocalMerged(
   isAudio: boolean = false
 ): Promise<string> {
   const platform = normalizePlatformParam(rawPlatform);
-  const tempDir = path.join(process.cwd(), TEMP_DIR_NAME);
+  const tempDir = getTempDir();
   if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
   }
@@ -107,6 +423,8 @@ async function ensureLocalMerged(
     ? 'audio'
     : quality.includes('1080')
     ? '1080p'
+    : quality.includes('480')
+    ? '480p'
     : quality.includes('360')
     ? '360p'
     : '720p';
@@ -115,7 +433,7 @@ async function ensureLocalMerged(
   const outputPath = path.join(tempDir, `${platform}_${idKey}_${cleanQuality}.${ext}`);
 
   // Path traversal guard: resolved output must stay inside the temp cache root
-  const tempRoot = path.resolve(process.cwd(), TEMP_DIR_NAME);
+  const tempRoot = path.resolve(tempDir);
   const resolvedOutput = path.resolve(outputPath);
   if (!resolvedOutput.startsWith(tempRoot + path.sep)) {
     throw new Error('Invalid cache path for merged media.');
@@ -147,14 +465,38 @@ async function ensureLocalMerged(
     throw busyError;
   }
 
-  const ytBinary = path.join(process.cwd(), 'bin', 'yt-dlp.exe');
-  if (!fs.existsSync(ytBinary)) {
-    throw new Error('yt-dlp binary not found in bin directory.');
-  }
-
   const mergePromise = (async () => {
     activeMerges++;
     try {
+      // 1. Native Niconico Domand Engine (works on Vercel Serverless + Local Windows/Linux)
+      if (
+        platform === 'niconico' ||
+        originalUrl.includes('nicovideo.jp') ||
+        originalUrl.includes('nico.ms')
+      ) {
+        try {
+          return await mergeNicoNicoDomand(
+            originalUrl,
+            resolvedOutput,
+            cleanQuality,
+            isAudio,
+            tempDir
+          );
+        } catch (domandErr) {
+          console.warn('Native Niconico Domand merge failed, checking yt-dlp fallback:', domandErr);
+        }
+      }
+
+      // 2. Local yt-dlp Engine
+      const ytBinary = path.join(
+        process.cwd(),
+        'bin',
+        process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+      );
+      if (!fs.existsSync(ytBinary)) {
+        throw new Error('yt-dlp binary not found in bin directory.');
+      }
+
       return await new Promise<string>((resolve, reject) => {
         let args: string[] = [];
 
@@ -172,7 +514,7 @@ async function ensureLocalMerged(
             '--no-exec',
             '--no-config-locations',
             ...extraSafeFlags,
-            '-o', outputPath,
+            '-o', resolvedOutput,
             '--', originalUrl,
           ];
         } else if (platform === 'niconico') {
@@ -181,6 +523,8 @@ async function ensureLocalMerged(
             formatSpec = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
           } else if (cleanQuality === '720p') {
             formatSpec = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best';
+          } else if (cleanQuality === '480p') {
+            formatSpec = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best';
           } else if (cleanQuality === '360p') {
             formatSpec = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best';
           }
@@ -191,7 +535,7 @@ async function ensureLocalMerged(
             '--no-exec',
             '--no-config-locations',
             ...extraSafeFlags,
-            '-o', outputPath,
+            '-o', resolvedOutput,
             '--', originalUrl,
           ];
         } else if (platform === 'youtube') {
@@ -208,7 +552,7 @@ async function ensureLocalMerged(
             '--no-exec',
             '--no-config-locations',
             ...extraSafeFlags,
-            '-o', outputPath,
+            '-o', resolvedOutput,
             '--', originalUrl,
           ];
         } else if (platform === 'facebook') {
@@ -225,7 +569,7 @@ async function ensureLocalMerged(
             '--no-exec',
             '--no-config-locations',
             ...extraSafeFlags,
-            '-o', outputPath,
+            '-o', resolvedOutput,
             '--', originalUrl,
           ];
         } else {
@@ -237,7 +581,7 @@ async function ensureLocalMerged(
             '--no-exec',
             '--no-config-locations',
             ...extraSafeFlags,
-            '-o', outputPath,
+            '-o', resolvedOutput,
             '--', originalUrl,
           ];
         }
@@ -321,7 +665,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       ? 'image/jpeg'
       : 'video/mp4';
 
-  // 1. High-Speed Local Engine (YouTube & Facebook Muxing / MP3)
+  // 1. High-Speed Local / Native Engine (NicoNico Domand, YouTube & Facebook Muxing / MP3)
   const isLocalEngine =
     isInternalLocalFlag ||
     targetUrl === 'local_merge' ||
@@ -333,8 +677,23 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     targetUrl.includes('youtu.be');
 
   if (isLocalEngine) {
+    const origUrl = searchParams.get('origUrl') || targetUrl;
+
+    // Optional external persistent engine offload (e.g. Render server-engine) if NICONICO_ENGINE_URL is set
+    const externalEngineBase = (process.env.NICONICO_ENGINE_URL || '').trim().replace(/\/+$/, '');
+    if (
+      externalEngineBase &&
+      (sourcePlatform === 'niconico' || origUrl.includes('nicovideo.jp') || origUrl.includes('nico.ms'))
+    ) {
+      const offloadUrl = `${externalEngineBase}/download?url=${encodeURIComponent(
+        origUrl
+      )}&platform=${encodeURIComponent(sourcePlatform)}&quality=${encodeURIComponent(
+        qualityParam
+      )}&filename=${encodeURIComponent(rawFilename)}`;
+      return NextResponse.redirect(offloadUrl);
+    }
+
     try {
-      const origUrl = searchParams.get('origUrl') || targetUrl;
       if (!(await isSafeExternalUrl(origUrl)) || !isSafeCliTargetUrl(origUrl)) {
         return NextResponse.json({ error: 'Access denied: Dangerous target URL.' }, { status: 403 });
       }
@@ -438,10 +797,15 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
           console.warn('Cloud fallback resolution failed:', cloudErr);
         }
       }
+
+      return NextResponse.json(
+        { error: (err as Error)?.message || 'Failed to process and merge media stream.' },
+        { status: 502 }
+      );
     }
   }
 
-  // 2. High-Speed Direct Proxy for Remote Streams (TikTok, Twitter/X)
+  // 2. High-Speed Direct Proxy for Remote Streams (TikTok, Twitter/X, DeviantArt)
   try {
     const fetchHeaders: Record<string, string> = {
       'User-Agent':

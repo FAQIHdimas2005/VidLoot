@@ -1144,7 +1144,102 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
   const idMatch = url.match(/(?:watch\/|nico\.ms\/)?([a-z]{2}\d+)/i);
   const nicoId = idMatch ? idMatch[1] : null;
 
-  // Method A: Native yt-dlp Extractor
+  // Method A: Domand Watch API v3 (Instant < 500ms on both Vercel & Local)
+  if (nicoId) {
+    try {
+      const nicoCookie = (process.env.NICONICO_COOKIE || '').trim();
+      const apiEndpoint = nicoCookie ? 'v3' : 'v3_guest';
+      const apiUrl = `https://www.nicovideo.jp/api/watch/${apiEndpoint}/${nicoId}?actionTrackId=AAAAAAAAAA_${Date.now()}`;
+      const reqHeaders: Record<string, string> = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'X-Frontend-Id': '6',
+        'X-Frontend-Version': '0',
+      };
+      if (nicoCookie) {
+        reqHeaders['Cookie'] = nicoCookie;
+      }
+
+      let res = await fetch(apiUrl, { headers: reqHeaders });
+      if (!res.ok && nicoCookie) {
+        res = await fetch(
+          `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=AAAAAAAAAA_${Date.now()}`,
+          {
+            headers: {
+              'User-Agent': reqHeaders['User-Agent'],
+              'X-Frontend-Id': '6',
+              'X-Frontend-Version': '0',
+            },
+          }
+        );
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        const v = data?.data?.video;
+        if (v && v.title) {
+          const domandVideos: any[] = Array.isArray(data?.data?.media?.domand?.videos)
+            ? data.data.media.domand.videos
+            : [];
+          const availableVideos = domandVideos
+            .filter((item) => item && item.isAvailable && (item.height || 0) >= 360)
+            .sort((a, b) => (b.height || 0) - (a.height || 0));
+
+          const medias: DownloadMedia[] = [];
+
+          if (availableVideos.length > 0) {
+            for (const vid of availableVideos) {
+              const qMatch = String(vid.id || '').match(/(\d+p)/i);
+              const qTag = qMatch ? qMatch[1].toLowerCase() : `${vid.height || 720}p`;
+              const dimStr = vid.width && vid.height ? `${vid.width}x${vid.height}` : qTag.toUpperCase();
+              medias.push({
+                quality: qTag,
+                format: 'mp4',
+                url: 'local_merge',
+                label: `Download Video NicoNico — ${qTag.toUpperCase()} (${dimStr})`,
+              });
+            }
+          } else {
+            medias.push(
+              {
+                quality: '720p',
+                format: 'mp4',
+                url: 'local_merge',
+                label: 'Download Video NicoNico (HD 720p)',
+              },
+              {
+                quality: '360p',
+                format: 'mp4',
+                url: 'local_merge',
+                label: 'Download Video NicoNico (SD 360p)',
+              }
+            );
+          }
+
+          medias.push({
+            quality: 'mp3',
+            format: 'mp3',
+            url: 'local_merge',
+            label: 'Download Audio Sound (MP3)',
+          });
+
+          return {
+            success: true,
+            platform: 'niconico',
+            title: v.title || 'Nico Nico Douga Video',
+            author: data?.data?.owner?.nickname ? `@${data.data.owner.nickname}` : undefined,
+            thumbnail: v.thumbnail?.ogp || v.thumbnail?.player || v.thumbnail?.largeUrl || v.thumbnail?.url,
+            duration: v.duration ? formatDuration(v.duration) : undefined,
+            medias,
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('NicoNico API metadata error:', apiErr);
+    }
+  }
+
+  // Method B: Native yt-dlp Extractor Fallback
   try {
     const json = await getYtDlpJson(url);
     if (json && (json.title || json.formats)) {
@@ -1195,60 +1290,6 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
     }
   } catch (err) {
     console.warn('yt-dlp NicoNico error:', err);
-  }
-
-  // Method B: Domand Watch API v3 Guest Endpoint
-  if (nicoId) {
-    try {
-      const apiUrl = `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=VidLoot_${Date.now()}`;
-      const res = await fetch(apiUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-          'X-Frontend-Id': '6',
-          'X-Frontend-Version': '0',
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const v = data?.data?.video;
-        if (v && v.title) {
-          const medias: DownloadMedia[] = [
-            {
-              quality: '720p',
-              format: 'mp4',
-              url: 'local_merge',
-              label: 'Download Video NicoNico (HD 720p)',
-            },
-            {
-              quality: '360p',
-              format: 'mp4',
-              url: 'local_merge',
-              label: 'Download Video NicoNico (SD 360p)',
-            },
-            {
-              quality: 'mp3',
-              format: 'mp3',
-              url: 'local_merge',
-              label: 'Download Audio Sound (MP3)',
-            },
-          ];
-
-          return {
-            success: true,
-            platform: 'niconico',
-            title: v.title || 'Nico Nico Douga Video',
-            author: data?.data?.owner?.nickname ? `@${data.data.owner.nickname}` : undefined,
-            thumbnail: v.thumbnail?.largeUrl || v.thumbnail?.url,
-            duration: v.duration ? formatDuration(v.duration) : undefined,
-            medias,
-          };
-        }
-      }
-    } catch (apiErr) {
-      console.warn('NicoNico API metadata error:', apiErr);
-    }
   }
 
   return null;

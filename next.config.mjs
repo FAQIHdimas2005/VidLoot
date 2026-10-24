@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['ffmpeg-static'],
+  outputFileTracingIncludes: {
+    '/api/download-proxy': ['./node_modules/ffmpeg-static/**/*'],
+  },
   images: {
     remotePatterns: [
       {
