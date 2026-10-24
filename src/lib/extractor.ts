@@ -286,47 +286,34 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
     }
   }
 
-  // Method B: High-Speed Cloud downallv4 (Vercel Serverless & Cloud Production)
-  // Provides direct progressive download links with Content-Disposition: attachment
+  // Method B: High-Speed Cloud downallv2 (Instant ~3.5s metadata with 1080p/720p/480p/360p/MP3)
   try {
     const { MediaDownloader } = require('@satorufx/mediadownloader');
-    const client = new MediaDownloader({ timeout: 25000 });
-    const res = await client.fromEndpoint('downallv4', url, { quality: '1080p' });
+    const client = new MediaDownloader({ timeout: 10000 });
+    const res = await client.fromEndpoint('downallv2', url);
 
-    if (res && res.ok && (res.video || res.audio)) {
+    if (res && res.ok && Array.isArray(res.media) && res.media.length > 0) {
       const medias: DownloadMedia[] = [];
+      const wantedQualities = ['1080p', '720p', '480p', '360p'];
 
-      if (res.video) {
-        medias.push({
-          quality: '1080p',
-          format: 'mp4',
-          url: res.video,
-          label: 'Download Video (1080p Full HD)',
-        });
-        medias.push({
-          quality: '720p',
-          format: 'mp4',
-          url: res.video,
-          label: 'Download Video (720p HD)',
-        });
+      for (const q of wantedQualities) {
+        const found = res.media.find((m: any) => m.type === 'video' && m.quality === q && m.url);
+        if (found) {
+          medias.push({
+            quality: q,
+            format: 'mp4',
+            url: found.url,
+            label: `Download Video (${q === '1080p' ? '1080p Full HD' : q === '720p' ? '720p HD' : q})`,
+          });
+        }
       }
 
-      // Add 360p fallback if available in formats
-      const video360 = res.raw?.formats?.find((f: any) => f.format_id === '18');
-      if (video360?.url) {
-        medias.push({
-          quality: '360p',
-          format: 'mp4',
-          url: video360.url,
-          label: 'Download Video (360p Standard)',
-        });
-      }
-
-      if (res.audio) {
+      const audioItem = res.media.find((m: any) => m.type === 'audio' && m.url);
+      if (audioItem) {
         medias.push({
           quality: 'mp3',
           format: 'mp3',
-          url: res.audio,
+          url: audioItem.url,
           label: 'Download Audio Sound (MP3)',
         });
       }
@@ -338,81 +325,39 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
           title: res.title || 'YouTube Video',
           author: res.author && res.author !== 'Unknown' ? res.author : undefined,
           thumbnail: res.thumbnail,
-          duration: res.duration ? formatDuration(res.duration) : undefined,
+          duration: res.duration ? formatDuration(res.duration) : res.durationRaw || undefined,
           medias,
         };
       }
     }
   } catch (err) {
-    console.warn('YouTube cloud downallv4 error, trying fallback:', err);
+    console.warn('YouTube cloud downallv2 error, trying youtubedl:', err);
   }
 
-  // Method C: btch-downloader fallback
+  // Method C: Fast youtubedl endpoint (~1.5s response time)
   try {
-    const { youtube } = require('btch-downloader');
-    const data = await youtube(url);
-    if (data && (data.status || data.mp4)) {
-      const medias: DownloadMedia[] = [];
+    const { MediaDownloader } = require('@satorufx/mediadownloader');
+    const client = new MediaDownloader({ timeout: 9000 });
+    const res = await client.fromEndpoint('youtubedl', url);
 
-      if (data.mp4) {
-        medias.push({
-          quality: '720p',
-          format: 'mp4',
-          url: data.mp4,
-          label: 'Download Video MP4 (Fast HD)',
-        });
-        medias.push({
-          quality: '360p',
-          format: 'mp4',
-          url: data.mp4,
-          label: 'Download Video MP4 (Standard)',
-        });
-      }
+    const videoProxyUrl = res?.raw?.formats?.video?.url || res?.video;
+    const audioProxyUrl = res?.raw?.formats?.audio?.url || res?.audio;
 
-      if (data.mp3) {
-        medias.push({
-          quality: 'mp3',
-          format: 'mp3',
-          url: data.mp3,
-          label: 'Download Audio Sound (MP3)',
-        });
-      }
-
-      if (medias.length > 0) {
-        return {
-          success: true,
-          platform: 'youtube',
-          title: data.title || 'YouTube Video',
-          author: data.author || undefined,
-          thumbnail: data.thumbnail,
-          medias,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('YouTube btch-downloader fallback error, trying youtubedl:', err);
-  }
-
-  // Method D: mediadownloader youtubedl fallback
-  try {
-    const dl = require('@satorufx/mediadownloader');
-    const res = await dl.fromEndpoint('youtubedl', url);
-
-    if (res && res.ok && res.video) {
+    if (res && res.ok && videoProxyUrl) {
       const medias: DownloadMedia[] = [
         {
           quality: '360p',
           format: 'mp4',
-          url: res.video,
+          url: videoProxyUrl,
           label: 'Download Video (360p Standard)',
         },
       ];
 
-      if (res.audio) {
+      if (audioProxyUrl) {
         medias.push({
           quality: 'mp3',
           format: 'mp3',
-          url: res.audio,
+          url: audioProxyUrl,
           label: 'Download Audio Sound (MP3)',
         });
       }
@@ -428,7 +373,47 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
       };
     }
   } catch (err) {
-    console.warn('YouTube fallback extraction error:', err);
+    console.warn('YouTube youtubedl fallback error, trying downallv4:', err);
+  }
+
+  // Method D: downallv4 fallback with strict 10s timeout so Vercel never hits 60s timeout
+  try {
+    const { MediaDownloader } = require('@satorufx/mediadownloader');
+    const client = new MediaDownloader({ timeout: 10000 });
+    const res = await client.fromEndpoint('downallv4', url, { quality: '720p' });
+
+    if (res && res.ok && (res.video || res.audio)) {
+      const medias: DownloadMedia[] = [];
+      if (res.video) {
+        medias.push({
+          quality: '720p',
+          format: 'mp4',
+          url: res.video,
+          label: 'Download Video (720p HD)',
+        });
+      }
+      if (res.audio) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          url: res.audio,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
+      if (medias.length > 0) {
+        return {
+          success: true,
+          platform: 'youtube',
+          title: res.title || 'YouTube Video',
+          author: res.author && res.author !== 'Unknown' ? res.author : undefined,
+          thumbnail: res.thumbnail,
+          duration: res.duration ? formatDuration(res.duration) : undefined,
+          medias,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('YouTube downallv4 fallback error:', err);
   }
   return null;
 }

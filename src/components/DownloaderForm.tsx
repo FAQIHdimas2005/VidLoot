@@ -312,20 +312,37 @@ export default function DownloaderForm({
               Please wait while our servers fetch and process your video in maximum quality.
             </p>
 
-            {/* ADSTERRA 300x250 BANNER SLOT INSIDE REWARDED MODAL */}
+            {/* ADSTERRA 300x250 BANNER SLOT INSIDE REWARDED MODAL (WITH CLEAN FALLBACK ON MOBILE DNS BLOCK) */}
             <div className="w-full my-4 p-3 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950/30 to-slate-950 border border-slate-700/80 flex flex-col items-center justify-center min-h-[275px] relative overflow-hidden">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
                 Sponsored Advertisement
               </span>
               <div className="relative w-[300px] h-[250px] rounded-xl overflow-hidden bg-slate-900/90 border border-slate-800 flex items-center justify-center">
+                {/* Fallback card underneath in case mobile ISP / DNS blocks ad network */}
+                <a
+                  href="https://ko-fi.com/teamvidloot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute inset-0 z-0 flex flex-col items-center justify-center p-4 text-center hover:bg-slate-900/60 transition-colors"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mb-2">
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-200">
+                    Support VidLoot Free Server ☕
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-1 max-w-[220px]">
+                    Enjoying fast, watermark-free downloads? Support our server bandwidth on Ko-fi!
+                  </p>
+                </a>
                 <iframe
                   title="Sponsored Ad"
                   width={300}
                   height={250}
                   scrolling="no"
                   frameBorder={0}
-                  className="w-[300px] h-[250px] border-0 relative z-10"
-                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;width:300px;height:250px;overflow:hidden;background:transparent;display:flex;align-items:center;justify-content:center;}</style></head><body><script type="text/javascript">atOptions={'key':'df5f0c6c4623522036aca83adf959fb8','format':'iframe','height':250,'width':300,'params':{}};</script><script type="text/javascript" src="https://bellnewyork.org/22/df5f0c6c4623522036aca83adf959fb8"></script></body></html>`}
+                  className="w-[300px] h-[250px] border-0 relative z-10 pointer-events-auto"
+                  srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;width:300px;height:250px;overflow:hidden;background:transparent;display:flex;align-items:center;justify-content:center;}img:-moz-broken{opacity:0}</style><script>window.addEventListener('error',function(e){if(e.target&&(e.target.tagName==='IMG'||e.target.tagName==='IFRAME')){e.target.style.display='none';}},true);</script></head><body><script type="text/javascript">atOptions={'key':'df5f0c6c4623522036aca83adf959fb8','format':'iframe','height':250,'width':300,'params':{}};</script><script type="text/javascript" src="https://bellnewyork.org/22/df5f0c6c4623522036aca83adf959fb8"></script></body></html>`}
                 />
               </div>
             </div>

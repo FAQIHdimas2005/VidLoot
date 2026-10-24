@@ -839,8 +839,31 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     }
   }
 
-  // 2. High-Speed Direct Proxy for Remote Streams (TikTok, Twitter/X, DeviantArt)
+  // 2. High-Speed Direct Proxy for Remote Streams (TikTok, Twitter/X, DeviantArt, YouTube SSE)
   try {
+    let resolvedTargetUrl = targetUrl;
+
+    // Resolve downallv2 SSE progress endpoints into their direct CDN download_url
+    if (resolvedTargetUrl.includes('/sse-progress?')) {
+      const sseRes = await fetch(resolvedTargetUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Accept: 'text/event-stream,*/*',
+        },
+      });
+      if (sseRes.ok) {
+        const sseText = await sseRes.text();
+        const dlMatch = sseText.match(/"download_url"\s*:\s*"([^"]+)"/);
+        if (dlMatch && dlMatch[1]) {
+          const parsedUrl = JSON.parse(`"${dlMatch[1]}"`);
+          if (parsedUrl && (await isSafeExternalUrl(parsedUrl))) {
+            resolvedTargetUrl = parsedUrl;
+          }
+        }
+      }
+    }
+
     const fetchHeaders: Record<string, string> = {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -852,7 +875,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     }
 
     if (isHead) {
-      const headRes = await fetch(targetUrl, { method: 'HEAD', headers: fetchHeaders });
+      const headRes = await fetch(resolvedTargetUrl, { method: 'HEAD', headers: fetchHeaders });
       const upstreamType = headRes.headers.get('content-type') || '';
       if (upstreamType.toLowerCase().includes('text/html')) {
         return NextResponse.json({ error: 'Upstream URL is a webpage, not a media file.' }, { status: 502 });
@@ -884,12 +907,12 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       return new NextResponse(null, { status: headRes.status === 206 ? 206 : 200, headers: respHeaders });
     }
 
-    const mediaResponse = await fetch(targetUrl, { headers: fetchHeaders });
+    const mediaResponse = await fetch(resolvedTargetUrl, { headers: fetchHeaders });
 
     if (!mediaResponse.ok && mediaResponse.status !== 206) {
       console.warn(`Upstream status ${mediaResponse.status}, redirecting to source URL`);
-      if (await isSafeExternalUrl(targetUrl)) {
-        return NextResponse.redirect(targetUrl);
+      if (await isSafeExternalUrl(resolvedTargetUrl)) {
+        return NextResponse.redirect(resolvedTargetUrl);
       }
       return NextResponse.json({ error: 'Upstream media is unavailable.' }, { status: 502 });
     }
