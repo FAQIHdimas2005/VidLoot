@@ -58,7 +58,7 @@ function getTempDir(): string {
   return path.join(os.tmpdir(), TEMP_DIR_NAME);
 }
 
-function resolveFfmpegBinary(): string {
+function resolveFfmpegBinary(tempDir?: string): string {
   const localBin = path.join(
     process.cwd(),
     'bin',
@@ -71,7 +71,25 @@ function resolveFfmpegBinary(): string {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const staticFfmpeg = require('ffmpeg-static');
     if (typeof staticFfmpeg === 'string' && fs.existsSync(staticFfmpeg)) {
-      return staticFfmpeg;
+      if (process.platform === 'win32') {
+        return staticFfmpeg;
+      }
+      // On Linux / Vercel Serverless: copy to tempDir and set executable bit 0o755
+      const effectiveTemp = tempDir || getTempDir();
+      if (!fs.existsSync(effectiveTemp)) {
+        fs.mkdirSync(effectiveTemp, { recursive: true });
+      }
+      const tmpFfmpeg = path.join(effectiveTemp, 'ffmpeg');
+      try {
+        if (!fs.existsSync(tmpFfmpeg)) {
+          fs.copyFileSync(staticFfmpeg, tmpFfmpeg);
+        }
+        fs.chmodSync(tmpFfmpeg, 0o755);
+        return tmpFfmpeg;
+      } catch (copyErr) {
+        console.warn('Failed to copy/chmod ffmpeg in tempDir:', copyErr);
+        return staticFfmpeg;
+      }
     }
   } catch {
     // fallback to system PATH
@@ -135,25 +153,32 @@ async function mergeNicoNicoDomand(
     return rawList.map((c) => c.split(';')[0]).filter(Boolean);
   };
 
+  const nicoCookie = (process.env.NICONICO_COOKIE || '').trim();
+  const baseHeaders: Record<string, string> = {
+    'User-Agent': ua,
+    Accept: '*/*',
+    'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+    'X-Frontend-Id': '6',
+    'X-Frontend-Version': '0',
+  };
+  if (nicoCookie) {
+    baseHeaders['Cookie'] = nicoCookie;
+  }
+
   // 1. Fetch Watch API v3_guest (or fallback to v3)
+  const endpoint = nicoCookie ? 'v3' : 'v3_guest';
   let watchRes = await fetch(
-    `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
-    {
-      headers: {
-        'User-Agent': ua,
-        Accept: 'application/json',
-        'X-Frontend-Id': '6',
-        'X-Frontend-Version': '0',
-      },
-    }
+    `https://www.nicovideo.jp/api/watch/${endpoint}/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+    { headers: baseHeaders }
   );
-  if (!watchRes.ok) {
+  if (!watchRes.ok && nicoCookie) {
     watchRes = await fetch(
-      `https://www.nicovideo.jp/api/watch/v3/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+      `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
       {
         headers: {
           'User-Agent': ua,
-          Accept: 'application/json',
+          Accept: '*/*',
+          'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
           'X-Frontend-Id': '6',
           'X-Frontend-Version': '0',
         },
@@ -197,21 +222,27 @@ async function mergeNicoNicoDomand(
   const selectedAudio = availAudios[0];
 
   // 2. Request Domand HLS Access Right
+  const accessHeaders: Record<string, string> = {
+    'User-Agent': ua,
+    'Content-Type': 'application/json',
+    Accept: '*/*',
+    'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+    'X-Access-Right-Key': domand.accessRightKey,
+    'X-Request-With': 'https://www.nicovideo.jp',
+    'X-Frontend-Id': '6',
+    'X-Frontend-Version': '0',
+    Origin: 'https://www.nicovideo.jp',
+    Referer: 'https://www.nicovideo.jp/',
+  };
+  if (baseCookies.length > 0) {
+    accessHeaders['Cookie'] = baseCookies.join('; ');
+  }
+
   const accessRes = await fetch(
     `https://nvapi.nicovideo.jp/v1/watch/${nicoId}/access-rights/hls?actionTrackId=${encodeURIComponent(trackId)}`,
     {
       method: 'POST',
-      headers: {
-        'User-Agent': ua,
-        'Content-Type': 'application/json',
-        'X-Access-Right-Key': domand.accessRightKey,
-        'X-Request-With': 'https://www.nicovideo.jp',
-        'X-Frontend-Id': '6',
-        'X-Frontend-Version': '0',
-        Origin: 'https://www.nicovideo.jp',
-        Referer: 'https://www.nicovideo.jp/',
-        Cookie: baseCookies.join('; '),
-      },
+      headers: accessHeaders,
       body: JSON.stringify({
         outputs: [[selectedVideo.id, selectedAudio.id]],
       }),
@@ -232,7 +263,12 @@ async function mergeNicoNicoDomand(
   // 3. Parse Master M3U8
   const masterText = await (
     await fetch(masterM3u8Url, {
-      headers: { 'User-Agent': ua, Cookie: allCookies },
+      headers: {
+        'User-Agent': ua,
+        Accept: '*/*',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+        Cookie: allCookies,
+      },
     })
   ).text();
 
@@ -257,7 +293,12 @@ async function mergeNicoNicoDomand(
   const downloadAndDecryptStream = async (playlistUrl: string, destFile: string) => {
     const m3u8Text = await (
       await fetch(playlistUrl, {
-        headers: { 'User-Agent': ua, Cookie: allCookies },
+        headers: {
+          'User-Agent': ua,
+          Accept: '*/*',
+          'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+          Cookie: allCookies,
+        },
       })
     ).text();
 
@@ -290,11 +331,23 @@ async function mergeNicoNicoDomand(
     }
 
     const [initBuf, keyBuf] = await Promise.all([
-      fetch(initUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+      fetch(initUrl, {
+        headers: {
+          'User-Agent': ua,
+          Accept: '*/*',
+          Cookie: allCookies,
+        },
+      })
         .then((r) => r.arrayBuffer())
         .then((b) => Buffer.from(b)),
       keyUrl
-        ? fetch(keyUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+        ? fetch(keyUrl, {
+            headers: {
+              'User-Agent': ua,
+              Accept: '*/*',
+              Cookie: allCookies,
+            },
+          })
             .then((r) => r.arrayBuffer())
             .then((b) => Buffer.from(b))
         : Promise.resolve(null),
@@ -310,7 +363,13 @@ async function mergeNicoNicoDomand(
           const segIndex = i + idx;
           const rawBuf = Buffer.from(
             await (
-              await fetch(segUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+              await fetch(segUrl, {
+                headers: {
+                  'User-Agent': ua,
+                  Accept: '*/*',
+                  Cookie: allCookies,
+                },
+              })
             ).arrayBuffer()
           );
 
@@ -348,7 +407,7 @@ async function mergeNicoNicoDomand(
       ]);
     }
 
-    const ffmpegBin = resolveFfmpegBinary();
+    const ffmpegBin = resolveFfmpegBinary(tempDir);
     const ffmpegArgs = isAudio
       ? ['-y', '-i', tempAudioPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', outputPath]
       : [
@@ -474,20 +533,16 @@ async function ensureLocalMerged(
         originalUrl.includes('nicovideo.jp') ||
         originalUrl.includes('nico.ms')
       ) {
-        try {
-          return await mergeNicoNicoDomand(
-            originalUrl,
-            resolvedOutput,
-            cleanQuality,
-            isAudio,
-            tempDir
-          );
-        } catch (domandErr) {
-          console.warn('Native Niconico Domand merge failed, checking yt-dlp fallback:', domandErr);
-        }
+        return await mergeNicoNicoDomand(
+          originalUrl,
+          resolvedOutput,
+          cleanQuality,
+          isAudio,
+          tempDir
+        );
       }
 
-      // 2. Local yt-dlp Engine
+      // 2. Local yt-dlp Engine (YouTube, Facebook, etc.)
       const ytBinary = path.join(
         process.cwd(),
         'bin',
@@ -510,27 +565,6 @@ async function ensureLocalMerged(
           args = [
             '-x',
             '--audio-format', 'mp3',
-            '--no-playlist',
-            '--no-exec',
-            '--no-config-locations',
-            ...extraSafeFlags,
-            '-o', resolvedOutput,
-            '--', originalUrl,
-          ];
-        } else if (platform === 'niconico') {
-          let formatSpec = 'bestvideo+bestaudio/best';
-          if (cleanQuality === '1080p') {
-            formatSpec = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
-          } else if (cleanQuality === '720p') {
-            formatSpec = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best';
-          } else if (cleanQuality === '480p') {
-            formatSpec = 'bestvideo[height<=480]+bestaudio/best[height<=480]/best';
-          } else if (cleanQuality === '360p') {
-            formatSpec = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best';
-          }
-          args = [
-            '-f', formatSpec,
-            '--merge-output-format', 'mp4',
             '--no-playlist',
             '--no-exec',
             '--no-config-locations',

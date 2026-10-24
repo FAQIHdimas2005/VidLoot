@@ -126,24 +126,31 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
     return rawList.map((c) => c.split(';')[0]).filter(Boolean);
   };
 
+  const nicoCookie = (process.env.NICONICO_COOKIE || '').trim();
+  const baseHeaders = {
+    'User-Agent': ua,
+    Accept: '*/*',
+    'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+    'X-Frontend-Id': '6',
+    'X-Frontend-Version': '0',
+  };
+  if (nicoCookie) {
+    baseHeaders['Cookie'] = nicoCookie;
+  }
+
+  const endpoint = nicoCookie ? 'v3' : 'v3_guest';
   let watchRes = await fetch(
-    `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
-    {
-      headers: {
-        'User-Agent': ua,
-        Accept: 'application/json',
-        'X-Frontend-Id': '6',
-        'X-Frontend-Version': '0',
-      },
-    }
+    `https://www.nicovideo.jp/api/watch/${endpoint}/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+    { headers: baseHeaders }
   );
-  if (!watchRes.ok) {
+  if (!watchRes.ok && nicoCookie) {
     watchRes = await fetch(
-      `https://www.nicovideo.jp/api/watch/v3/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
+      `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=${encodeURIComponent(trackId)}`,
       {
         headers: {
           'User-Agent': ua,
-          Accept: 'application/json',
+          Accept: '*/*',
+          'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
           'X-Frontend-Id': '6',
           'X-Frontend-Version': '0',
         },
@@ -181,21 +188,27 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
     availVideos[0];
   const selectedAudio = availAudios[0];
 
+  const accessHeaders = {
+    'User-Agent': ua,
+    'Content-Type': 'application/json',
+    Accept: '*/*',
+    'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+    'X-Access-Right-Key': domand.accessRightKey,
+    'X-Request-With': 'https://www.nicovideo.jp',
+    'X-Frontend-Id': '6',
+    'X-Frontend-Version': '0',
+    Origin: 'https://www.nicovideo.jp',
+    Referer: 'https://www.nicovideo.jp/',
+  };
+  if (baseCookies.length > 0) {
+    accessHeaders['Cookie'] = baseCookies.join('; ');
+  }
+
   const accessRes = await fetch(
     `https://nvapi.nicovideo.jp/v1/watch/${nicoId}/access-rights/hls?actionTrackId=${encodeURIComponent(trackId)}`,
     {
       method: 'POST',
-      headers: {
-        'User-Agent': ua,
-        'Content-Type': 'application/json',
-        'X-Access-Right-Key': domand.accessRightKey,
-        'X-Request-With': 'https://www.nicovideo.jp',
-        'X-Frontend-Id': '6',
-        'X-Frontend-Version': '0',
-        Origin: 'https://www.nicovideo.jp',
-        Referer: 'https://www.nicovideo.jp/',
-        Cookie: baseCookies.join('; '),
-      },
+      headers: accessHeaders,
       body: JSON.stringify({
         outputs: [[selectedVideo.id, selectedAudio.id]],
       }),
@@ -215,7 +228,12 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
 
   const masterText = await (
     await fetch(masterM3u8Url, {
-      headers: { 'User-Agent': ua, Cookie: allCookies },
+      headers: {
+        'User-Agent': ua,
+        Accept: '*/*',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+        Cookie: allCookies,
+      },
     })
   ).text();
 
@@ -239,7 +257,12 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
   const downloadAndDecryptStream = async (playlistUrl, destFile) => {
     const m3u8Text = await (
       await fetch(playlistUrl, {
-        headers: { 'User-Agent': ua, Cookie: allCookies },
+        headers: {
+          'User-Agent': ua,
+          Accept: '*/*',
+          'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+          Cookie: allCookies,
+        },
       })
     ).text();
 
@@ -272,11 +295,23 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
     }
 
     const [initBuf, keyBuf] = await Promise.all([
-      fetch(initUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+      fetch(initUrl, {
+        headers: {
+          'User-Agent': ua,
+          Accept: '*/*',
+          Cookie: allCookies,
+        },
+      })
         .then((r) => r.arrayBuffer())
         .then((b) => Buffer.from(b)),
       keyUrl
-        ? fetch(keyUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+        ? fetch(keyUrl, {
+            headers: {
+              'User-Agent': ua,
+              Accept: '*/*',
+              Cookie: allCookies,
+            },
+          })
             .then((r) => r.arrayBuffer())
             .then((b) => Buffer.from(b))
         : Promise.resolve(null),
@@ -292,7 +327,13 @@ async function mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudi
           const segIndex = i + idx;
           const rawBuf = Buffer.from(
             await (
-              await fetch(segUrl, { headers: { 'User-Agent': ua, Cookie: allCookies } })
+              await fetch(segUrl, {
+                headers: {
+                  'User-Agent': ua,
+                  Accept: '*/*',
+                  Cookie: allCookies,
+                },
+              })
             ).arrayBuffer()
           );
 
@@ -419,11 +460,7 @@ async function ensureMergedMedia(originalUrl, platform, quality, isAudio) {
         originalUrl.includes('nicovideo.jp') ||
         originalUrl.includes('nico.ms')
       ) {
-        try {
-          return await mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudio);
-        } catch (domandErr) {
-          console.warn('Domand native engine failed, falling back to yt-dlp:', domandErr.message);
-        }
+        return await mergeNicoNicoDomand(originalUrl, outputPath, cleanQuality, isAudio);
       }
 
       // Secondary: yt-dlp CLI
