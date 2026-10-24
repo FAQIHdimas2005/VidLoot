@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Heart } from "lucide-react";
+import { ShieldCheck, Heart, Coffee } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -17,6 +17,19 @@ export default function Footer() {
             <div className="flex items-center gap-2 text-xs text-emerald-400 pt-1">
               <ShieldCheck className="w-4 h-4" />
               <span>100% Free, Secure & No Personal Data Stored</span>
+            </div>
+
+            {/* Support on Ko-fi Button */}
+            <div className="pt-2">
+              <a
+                href="https://ko-fi.com/teamvidloot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-300 hover:from-amber-300 hover:to-yellow-300 transition-all shadow-md shadow-amber-500/15 group"
+              >
+                <Coffee className="w-4 h-4 text-slate-950 group-hover:scale-110 transition-transform" />
+                <span>Support VidLoot on Ko-fi ☕</span>
+              </a>
             </div>
           </div>
 
@@ -47,6 +60,16 @@ export default function Footer() {
               <li>
                 <Link href="/youtube-downloader" className="hover:text-white transition-colors">
                   YouTube Downloader
+                </Link>
+              </li>
+              <li>
+                <Link href="/deviantart-downloader" className="hover:text-white transition-colors">
+                  DeviantArt Downloader
+                </Link>
+              </li>
+              <li>
+                <Link href="/niconico-downloader" className="hover:text-white transition-colors">
+                  NicoNico Downloader
                 </Link>
               </li>
             </ul>
