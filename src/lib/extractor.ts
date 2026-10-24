@@ -804,10 +804,233 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
   return null;
 }
 
-// 6. REAL DEVIANTART EXTRACTOR (100% Serverless Cloud)
+function formatBytes(bytes?: number): string | undefined {
+  if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return undefined;
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+function buildDeviantArtMediaUrl(media: any, typeObj: any): string | null {
+  if (!media || !typeObj) return null;
+  if (typeObj.b && typeof typeObj.b === 'string') return typeObj.b;
+  if (!media.baseUri || typeof media.baseUri !== 'string') return null;
+
+  const prettyName = media.prettyName || '';
+  let pathPart = '';
+  if (typeObj.c && typeof typeObj.c === 'string') {
+    pathPart = typeObj.c.replace(/<prettyName>/g, prettyName);
+    if (!pathPart.startsWith('/')) pathPart = '/' + pathPart;
+  }
+
+  // Reject blurred placeholder paths used for login-gated mature content
+  if (pathPart.includes(',blur_')) {
+    return null;
+  }
+
+  const tokens = Array.isArray(media.token) ? media.token : [];
+  let token = '';
+  if (typeof typeObj.r === 'number' && typeObj.r >= 0 && tokens[typeObj.r]) {
+    token = tokens[typeObj.r];
+  } else if (tokens.length > 0) {
+    token = tokens[0];
+  }
+
+  return `${media.baseUri}${pathPart}${token ? `?token=${token}` : ''}`;
+}
+
+// 6. REAL DEVIANTART EXTRACTOR (Videos, GIFs, & Original 4K/5K Artworks)
 async function extractDeviantArt(url: string): Promise<VideoExtractionResult | null> {
   try {
-    // 1. DeviantArt OEmbed API
+    // 1. Fetch HTML with Desktop Chrome User-Agent to parse window.__INITIAL_STATE__
+    const htmlRes = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+
+    if (htmlRes.ok) {
+      const html = await htmlRes.text();
+      const stateMatch = html.match(
+        /window\.__INITIAL_STATE__\s*=\s*JSON\.parse\("((?:\\.|[^"\\])*)"\)/
+      );
+
+      if (stateMatch && stateMatch[1]) {
+        try {
+          const rawStr = stateMatch[1]
+            .replace(/\\'/g, "'")
+            .replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex) =>
+              String.fromCharCode(parseInt(hex, 16))
+            );
+          const unescaped = JSON.parse(`"${rawStr}"`);
+          const state = JSON.parse(unescaped);
+
+          const deviations = state?.['@@entities']?.deviation || {};
+          const devExtendedMap = state?.['@@entities']?.deviationExtended || {};
+          const usersMap = state?.['@@entities']?.user || {};
+
+          const idFromUrl = url.match(/-(\d+)(?:$|[/?#])/i)?.[1];
+          const dev =
+            (idFromUrl && deviations[idFromUrl]) || Object.values(deviations)[0] as any;
+
+          if (dev && dev.media) {
+            const devExt = devExtendedMap[dev.deviationId] || {};
+            const authorObj = usersMap[dev.author] || {};
+            const title = dev.title || 'DeviantArt Artwork';
+            const authorName = authorObj.username || 'DeviantArt Artist';
+            const types: any[] = Array.isArray(dev.media.types) ? dev.media.types : [];
+
+            const medias: DownloadMedia[] = [];
+            let durationStr: string | undefined;
+
+            // A. Extract Video Streams (MP4: 1080p, 720p, 480p, 360p)
+            const videoTypes = types
+              .filter((t) => t.t === 'video' && typeof t.b === 'string')
+              .sort((a, b) => (b.h || 0) - (a.h || 0));
+
+            for (const v of videoTypes) {
+              if (!durationStr && v.d) {
+                durationStr = formatDuration(Math.round(v.d));
+              }
+              const resLabel = v.w && v.h ? `${v.w}x${v.h}` : (v.q || 'HD').toUpperCase();
+              const qualityTag = v.q ? `${v.q.toUpperCase()} (${resLabel})` : resLabel;
+              medias.push({
+                quality: qualityTag,
+                format: 'mp4',
+                url: v.b,
+                size: formatBytes(v.f),
+                label: `Download Video MP4 — ${qualityTag}`,
+              });
+            }
+
+            // B. Extract Animated GIF if present
+            const baseUriLower = (dev.media.baseUri || '').toLowerCase();
+            const origFileType = (devExt?.originalFile?.type || '').toLowerCase();
+            const isGif = baseUriLower.endsWith('.gif') || origFileType === 'gif';
+            const gifType = types.find((t) => t.t === 'gif' || (t.b && t.b.includes('.gif')));
+
+            if (isGif || gifType) {
+              const targetGifType = gifType || types.find((t) => t.t === 'fullview') || types[0];
+              const gifUrl =
+                buildDeviantArtMediaUrl(dev.media, targetGifType) ||
+                (dev.media.baseUri && dev.media.token?.[0]
+                  ? `${dev.media.baseUri}?token=${dev.media.token[0]}`
+                  : null);
+
+              if (gifUrl) {
+                const gw = devExt?.originalFile?.width || targetGifType?.w;
+                const gh = devExt?.originalFile?.height || targetGifType?.h;
+                const dimStr = gw && gh ? `${gw}x${gh}` : 'Original';
+                medias.push({
+                  quality: `${dimStr} (GIF)`,
+                  format: 'gif',
+                  url: gifUrl,
+                  size: formatBytes(devExt?.originalFile?.filesize),
+                  label: `Download Animated GIF (${dimStr})`,
+                });
+              }
+            }
+
+            // C. Extract Full-Resolution Original / Fullview Image (JPG / PNG)
+            const imgExt: 'png' | 'jpg' | 'gif' =
+              baseUriLower.endsWith('.png') || origFileType === 'png'
+                ? 'png'
+                : isGif
+                ? 'gif'
+                : 'jpg';
+
+            const fullviewType = types.find((t) => t.t === 'fullview');
+            const previewType = types.find((t) => t.t === 'preview');
+
+            // Unscaled raw baseUri with token (if available and not already added as GIF)
+            const rawOriginalUrl =
+              dev.media.baseUri && Array.isArray(dev.media.token) && dev.media.token[0]
+                ? `${dev.media.baseUri}?token=${dev.media.token[0]}`
+                : null;
+            const fullviewUrl = buildDeviantArtMediaUrl(dev.media, fullviewType);
+            const previewUrl = buildDeviantArtMediaUrl(dev.media, previewType);
+
+            if (!isGif) {
+              const bestImgUrl = fullviewUrl || rawOriginalUrl;
+              if (bestImgUrl) {
+                const fw = fullviewType?.w || devExt?.originalFile?.width;
+                const fh = fullviewType?.h || devExt?.originalFile?.height;
+                const dimStr = fw && fh ? `${fw}x${fh}` : 'Original Resolution';
+                const isVideoCover = videoTypes.length > 0 || Boolean(dev.isVideo);
+
+                medias.push({
+                  quality: dimStr,
+                  format: imgExt,
+                  url: bestImgUrl,
+                  size: !fullviewType?.c ? formatBytes(devExt?.originalFile?.filesize) : undefined,
+                  label: isVideoCover
+                    ? `Download Video Cover Image (${dimStr})`
+                    : `Download Full Resolution ${imgExt.toUpperCase()} (${dimStr})`,
+                });
+              }
+
+              if (previewUrl && previewUrl !== bestImgUrl && videoTypes.length === 0) {
+                const pw = previewType?.w;
+                const ph = previewType?.h;
+                const pDim = pw && ph ? `${pw}x${ph}` : 'Standard';
+                medias.push({
+                  quality: pDim,
+                  format: 'jpg',
+                  url: previewUrl,
+                  label: `Download Standard Resolution (${pDim})`,
+                });
+              }
+            }
+
+            // Pick a clean, unblurred thumbnail for preview card
+            const cleanThumbType =
+              previewType && !String(previewType.c || '').includes(',blur_')
+                ? previewType
+                : types.find(
+                    (t) =>
+                      (t.t === '400T' || t.t === '300W' || t.t === '150') &&
+                      !String(t.c || '').includes(',blur_')
+                  );
+            const thumbnailUrl =
+              buildDeviantArtMediaUrl(dev.media, cleanThumbType) ||
+              medias.find((m) => m.format !== 'mp4')?.url;
+
+            if (medias.length > 0) {
+              return {
+                success: true,
+                platform: 'deviantart',
+                title,
+                author: authorName,
+                thumbnail: thumbnailUrl || undefined,
+                duration: durationStr,
+                medias,
+              };
+            }
+
+            // If Deviation is blocked by Mature Content login gate and has 0 public streams:
+            if (dev.isBlocked) {
+              return {
+                success: false,
+                platform: 'deviantart',
+                title,
+                author: authorName,
+                medias: [],
+                error:
+                  'Postingan DeviantArt ini dikunci oleh filter Mature Content (Age-Restricted / Login Required) dari server DeviantArt, sehingga file video/gambar aslinya tidak dapat diakses tanpa login akun DeviantArt.',
+              };
+            }
+          }
+        } catch (parseErr) {
+          console.warn('DeviantArt INITIAL_STATE parse error:', parseErr);
+        }
+      }
+    }
+
+    // 2. Fallback to DeviantArt OEmbed API (only for direct non-HTML image URLs)
     const oembedUrl = `https://backend.deviantart.com/oembed?url=${encodeURIComponent(url)}`;
     const oembedRes = await fetch(oembedUrl, {
       headers: {
@@ -815,90 +1038,54 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
       },
     });
 
-    let oembed: any = null;
     if (oembedRes.ok) {
-      oembed = await oembedRes.json();
-    }
+      const oembed = await oembedRes.json();
+      const isDirectMediaUrl =
+        typeof oembed?.url === 'string' &&
+        oembed.type !== 'video' &&
+        !oembed.url.includes('deviantart.com/');
 
-    // 2. Fetch HTML for additional OpenGraph metadata
-    let ogTitle = '';
-    let ogImage = '';
-    let ogVideo = '';
-    let author = '';
+      if (isDirectMediaUrl) {
+        const ext: 'png' | 'gif' | 'jpg' = oembed.url.includes('.png')
+          ? 'png'
+          : oembed.url.includes('.gif')
+          ? 'gif'
+          : 'jpg';
+        const dim = oembed.width && oembed.height ? `${oembed.width}x${oembed.height}` : 'Original';
+        const medias: DownloadMedia[] = [
+          {
+            quality: dim,
+            format: ext,
+            url: oembed.url,
+            label: `Download Full Resolution ${ext.toUpperCase()} (${dim})`,
+          },
+        ];
 
-    try {
-      const htmlRes = await fetch(url, {
-        headers: {
-          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-        },
-      });
-      if (htmlRes.ok) {
-        const html = await htmlRes.text();
-        ogTitle = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1] || '';
-        ogImage = html.match(/property="og:image"\s+content="([^"]+)"/i)?.[1] || '';
-        ogVideo = html.match(/property="og:video(:url)?"\s+content="([^"]+)"/i)?.[2] || '';
-        const authorMatch = html.match(/name="author"\s+content="([^"]+)"/i)?.[1];
-        if (authorMatch) author = authorMatch;
+        if (oembed.thumbnail_url && oembed.thumbnail_url !== oembed.url) {
+          const tDim =
+            oembed.thumbnail_width && oembed.thumbnail_height
+              ? `${oembed.thumbnail_width}x${oembed.thumbnail_height}`
+              : 'Standard';
+          medias.push({
+            quality: tDim,
+            format: 'jpg',
+            url: oembed.thumbnail_url,
+            label: `Download Standard Resolution (${tDim})`,
+          });
+        }
+
+        return {
+          success: true,
+          platform: 'deviantart',
+          title: oembed.title || 'DeviantArt Artwork',
+          author: oembed.author_name || 'DeviantArt Artist',
+          thumbnail: oembed.thumbnail_url || oembed.url,
+          medias,
+        };
       }
-    } catch {}
-
-    const title =
-      oembed?.title ||
-      ogTitle.replace(/ by [^|]+ on DeviantArt$/i, '').trim() ||
-      'DeviantArt Artwork';
-    const authorName = oembed?.author_name || author || 'DeviantArt Artist';
-    const mainImageUrl = oembed?.url || ogImage;
-
-    if (!mainImageUrl && !ogVideo) {
-      return null;
     }
 
-    const medias: DownloadMedia[] = [];
-
-    // Animation video (if present)
-    if (ogVideo) {
-      medias.push({
-        quality: 'Video Animation (MP4)',
-        format: 'mp4',
-        url: ogVideo,
-        label: 'Download Animation Video (MP4)',
-      });
-    }
-
-    // Main Full-Resolution Image
-    if (mainImageUrl) {
-      const ext = mainImageUrl.includes('.png')
-        ? 'png'
-        : mainImageUrl.includes('.gif')
-        ? 'gif'
-        : 'jpg';
-      const width = oembed?.width ? `${oembed.width}x${oembed.height}` : 'Original Resolution';
-      medias.push({
-        quality: width,
-        format: ext,
-        url: mainImageUrl,
-        label: `Download Full Resolution (${width})`,
-      });
-    }
-
-    // Standard / Thumbnail Resolution
-    if (oembed?.thumbnail_url && oembed.thumbnail_url !== mainImageUrl) {
-      medias.push({
-        quality: `${oembed.thumbnail_width || 300}x${oembed.thumbnail_height || 300}`,
-        format: 'jpg',
-        url: oembed.thumbnail_url,
-        label: `Download Standard Resolution (${oembed.thumbnail_width || 300}px)`,
-      });
-    }
-
-    return {
-      success: true,
-      platform: 'deviantart',
-      title,
-      author: authorName,
-      thumbnail: oembed?.thumbnail_url || mainImageUrl,
-      medias,
-    };
+    return null;
   } catch (err) {
     console.warn('DeviantArt extractor error:', err);
     return null;

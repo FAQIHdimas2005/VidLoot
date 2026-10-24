@@ -242,14 +242,39 @@ async function ensureLocalMerged(
   return await mergePromise;
 }
 
+function resolveExtensionFromMime(mime: string, fallbackExt: string): string {
+  const lower = mime.toLowerCase();
+  if (lower.includes('audio/mpeg') || lower.includes('audio/mp3')) return 'mp3';
+  if (lower.includes('image/png')) return 'png';
+  if (lower.includes('image/gif')) return 'gif';
+  if (lower.includes('image/webp')) return 'webp';
+  if (lower.includes('image/jpeg') || lower.includes('image/jpg')) return 'jpg';
+  if (lower.includes('video/webm')) return 'webm';
+  if (lower.includes('video/mp4')) return 'mp4';
+  return fallbackExt;
+}
+
 async function handleProxy(req: NextRequest, isHead: boolean = false) {
   const { searchParams } = new URL(req.url);
   const targetUrl = searchParams.get('url') || '';
   const sourcePlatform = normalizePlatformParam(searchParams.get('platform'));
   const qualityParam = searchParams.get('quality') || '720p';
   const rawFilename = searchParams.get('filename') || 'video.mp4';
-  const isAudio = rawFilename.endsWith('.mp3') || qualityParam === 'mp3' || qualityParam.toLowerCase().includes('audio');
-  const ext = isAudio ? 'mp3' : 'mp4';
+  const isAudio =
+    rawFilename.toLowerCase().endsWith('.mp3') ||
+    qualityParam === 'mp3' ||
+    qualityParam.toLowerCase().includes('audio');
+
+  const rawExtMatch = rawFilename.match(/\.(mp4|mp3|jpg|jpeg|png|gif|webp|webm)$/i);
+  const urlExtMatch = targetUrl.match(/\.(mp4|mp3|jpg|jpeg|png|gif|webp|webm)(?:$|[?#])/i);
+  const ext = isAudio
+    ? 'mp3'
+    : rawExtMatch
+    ? rawExtMatch[1].toLowerCase()
+    : urlExtMatch
+    ? urlExtMatch[1].toLowerCase()
+    : 'mp4';
+
   const { ascii: asciiFilename, utf8: utf8Filename } = getCleanFilename(rawFilename, ext, sourcePlatform);
 
   if (!targetUrl) {
@@ -261,7 +286,18 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     return NextResponse.json({ error: 'Access denied: Dangerous target URL.' }, { status: 403 });
   }
 
-  const contentType = isAudio ? 'audio/mpeg' : 'video/mp4';
+  const contentType =
+    ext === 'mp3'
+      ? 'audio/mpeg'
+      : ext === 'png'
+      ? 'image/png'
+      : ext === 'gif'
+      ? 'image/gif'
+      : ext === 'webp'
+      ? 'image/webp'
+      : ext === 'jpg' || ext === 'jpeg'
+      ? 'image/jpeg'
+      : 'video/mp4';
 
   // 1. High-Speed Local Engine (YouTube & Facebook Muxing / MP3)
   const isLocalEngine =
@@ -395,15 +431,21 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     if (isHead) {
       const headRes = await fetch(targetUrl, { method: 'HEAD', headers: fetchHeaders });
       const upstreamType = headRes.headers.get('content-type') || '';
+      if (upstreamType.toLowerCase().includes('text/html')) {
+        return NextResponse.json({ error: 'Upstream URL is a webpage, not a media file.' }, { status: 502 });
+      }
       const isImage =
         upstreamType.startsWith('image/') ||
-        Boolean(targetUrl.match(/\.(jpg|jpeg|png|webp)/i)) ||
+        Boolean(targetUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) ||
         targetUrl.includes('/thumb?') ||
         targetUrl.includes('thumb');
 
       const finalContentType = isImage
-        ? (upstreamType.startsWith('image/') ? upstreamType : 'image/jpeg')
+        ? (upstreamType.startsWith('image/') ? upstreamType : contentType)
         : (upstreamType || contentType);
+
+      const resolvedExt = resolveExtensionFromMime(finalContentType, ext);
+      const { ascii: finalAscii, utf8: finalUtf8 } = getCleanFilename(rawFilename, resolvedExt, sourcePlatform);
 
       const respHeaders: Record<string, string> = {
         'Content-Type': finalContentType,
@@ -411,7 +453,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       };
       const hasCustomFilename = Boolean(searchParams.get('filename'));
       if (!isImage || hasCustomFilename) {
-        respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
+        respHeaders['Content-Disposition'] = `attachment; filename="${finalAscii}"; filename*=UTF-8''${finalUtf8}`;
       }
       const len = headRes.headers.get('content-length');
       if (len) respHeaders['Content-Length'] = len;
@@ -430,15 +472,25 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     }
 
     const upstreamType = mediaResponse.headers.get('content-type') || '';
+    if (upstreamType.toLowerCase().includes('text/html')) {
+      return NextResponse.json(
+        { error: 'Upstream returned an HTML webpage instead of a media stream.' },
+        { status: 502 }
+      );
+    }
+
     const isImage =
       upstreamType.startsWith('image/') ||
-      Boolean(targetUrl.match(/\.(jpg|jpeg|png|webp)/i)) ||
+      Boolean(targetUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) ||
       targetUrl.includes('/thumb?') ||
       targetUrl.includes('thumb');
 
     const finalContentType = isImage
-      ? (upstreamType.startsWith('image/') ? upstreamType : 'image/jpeg')
+      ? (upstreamType.startsWith('image/') ? upstreamType : contentType)
       : (upstreamType || contentType);
+
+    const resolvedExt = resolveExtensionFromMime(finalContentType, ext);
+    const { ascii: finalAscii, utf8: finalUtf8 } = getCleanFilename(rawFilename, resolvedExt, sourcePlatform);
 
     const respHeaders: Record<string, string> = {
       'Content-Type': finalContentType,
@@ -448,7 +500,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
 
     const hasCustomFilename = Boolean(searchParams.get('filename'));
     if (!isImage || hasCustomFilename) {
-      respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
+      respHeaders['Content-Disposition'] = `attachment; filename="${finalAscii}"; filename*=UTF-8''${finalUtf8}`;
     }
 
     const clen = mediaResponse.headers.get('content-length');

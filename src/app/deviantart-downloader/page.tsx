@@ -35,8 +35,8 @@ export default function DeviantArtDownloaderPage() {
       <section className="w-full py-8 sm:py-12">
         <DownloaderForm
           initialPlatform="deviantart"
-          titleOverride="DeviantArt Image & Art Downloader"
-          subtitleOverride="Save original full-resolution artworks, wallpapers, digital paintings, and video animations directly from DeviantArt without login."
+          titleOverride="DeviantArt Video, GIF & Art Downloader"
+          subtitleOverride="Save original full-resolution artworks (JPG/PNG), animated GIFs, and HD MP4 videos (1080p/720p) directly from DeviantArt."
         />
       </section>
 
