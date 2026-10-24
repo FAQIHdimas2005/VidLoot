@@ -409,7 +409,8 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
         'Content-Type': finalContentType,
         'Accept-Ranges': 'bytes',
       };
-      if (!isImage) {
+      const hasCustomFilename = Boolean(searchParams.get('filename'));
+      if (!isImage || hasCustomFilename) {
         respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
       }
       const len = headRes.headers.get('content-length');
@@ -445,7 +446,8 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       'Cache-Control': isImage ? 'public, max-age=86400' : 'no-cache',
     };
 
-    if (!isImage) {
+    const hasCustomFilename = Boolean(searchParams.get('filename'));
+    if (!isImage || hasCustomFilename) {
       respHeaders['Content-Disposition'] = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`;
     }
 

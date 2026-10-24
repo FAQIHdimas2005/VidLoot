@@ -4,11 +4,12 @@ export type PlatformType =
   | 'twitter'
   | 'facebook'
   | 'youtube'
+  | 'deviantart'
   | 'unknown';
 
 export interface DownloadMedia {
   quality: string;
-  format: 'mp4' | 'mp3' | 'webm';
+  format: 'mp4' | 'mp3' | 'webm' | 'jpg' | 'png' | 'gif';
   url: string;
   size?: string;
   label?: string;

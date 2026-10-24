@@ -22,5 +22,12 @@ export function detectPlatform(url: string): PlatformType {
   if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
     return 'youtube';
   }
+  if (
+    trimmed.includes('deviantart.com') ||
+    trimmed.includes('sta.sh') ||
+    trimmed.includes('fav.me')
+  ) {
+    return 'deviantart';
+  }
   return 'unknown';
 }

@@ -143,7 +143,7 @@ export function isSafeCliTargetUrl(rawUrl: unknown): boolean {
   return true;
 }
 
-const ALLOWED_PLATFORMS = new Set(['youtube', 'facebook', 'tiktok', 'instagram', 'twitter']);
+const ALLOWED_PLATFORMS = new Set(['youtube', 'facebook', 'tiktok', 'instagram', 'twitter', 'deviantart']);
 
 export function normalizePlatformParam(raw: unknown): string {
   if (typeof raw !== 'string') return 'media';

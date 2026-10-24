@@ -28,6 +28,7 @@
 - 🔴 **YouTube:** Shorts and standard videos in 1080p Full HD, 720p HD, 360p, and high-quality MP3 audio.
 - 🐦 **X (Twitter):** Highest available bitrate video extraction.
 - 👥 **Facebook:** Public clips, reels, and videos with automatic RFC 6266 naming.
+- 🎨 **DeviantArt:** Original full-resolution artworks, illustrations, wallpapers, and animation videos without login.
 
 ---
 

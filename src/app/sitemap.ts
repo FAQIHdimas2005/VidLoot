@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/x-downloader',
     '/facebook-downloader',
     '/youtube-downloader',
+    '/deviantart-downloader',
     '/dmca',
     '/privacy-policy',
     '/terms-of-service',

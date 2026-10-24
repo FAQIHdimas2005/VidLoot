@@ -30,6 +30,8 @@ export const metadata: Metadata = {
     "snaptik alternative",
     "ssstik",
     "savefrom net alternative",
+    "deviantart downloader",
+    "download deviantart image full resolution",
     "free video downloader",
   ],
   authors: [{ name: "VidLoot Global Team" }],

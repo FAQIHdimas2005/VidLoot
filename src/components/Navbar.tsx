@@ -13,6 +13,7 @@ export default function Navbar() {
     { href: "/x-downloader", label: "X / Twitter" },
     { href: "/facebook-downloader", label: "Facebook" },
     { href: "/youtube-downloader", label: "YouTube" },
+    { href: "/deviantart-downloader", label: "DeviantArt" },
   ];
 
   return (

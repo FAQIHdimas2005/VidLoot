@@ -8,6 +8,7 @@ import {
   Download,
   Music,
   Video,
+  Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
   RotateCcw,
@@ -182,6 +183,8 @@ export default function DownloaderForm({
         return { label: "Facebook", color: "bg-blue-600 text-white border-blue-400/30" };
       case "youtube":
         return { label: "YouTube", color: "bg-red-600 text-white border-red-400/30" };
+      case "deviantart":
+        return { label: "DeviantArt", color: "bg-emerald-950 text-emerald-400 border-emerald-600/40" };
       default:
         return { label: "All-in-One", color: "bg-slate-800 text-slate-300 border-slate-700" };
     }
@@ -205,7 +208,7 @@ export default function DownloaderForm({
         </h1>
         <p className="mt-3 text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
           {subtitleOverride ||
-            "Paste any public link from TikTok, Instagram Reels, Twitter/X, Facebook, or YouTube to download clean Full HD MP4 video or MP3 audio."}
+            "Paste any public link from TikTok, Instagram Reels, Twitter/X, Facebook, YouTube, or DeviantArt to download clean media."}
         </p>
       </div>
 
@@ -224,7 +227,7 @@ export default function DownloaderForm({
             type="text"
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
-            placeholder="Paste video link here (TikTok, IG, X, FB, YouTube)..."
+            placeholder="Paste link here (TikTok, IG, X, FB, YouTube, DeviantArt)..."
             className="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-500 px-3 py-2 outline-none"
           />
 
@@ -439,6 +442,7 @@ export default function DownloaderForm({
                   )}&filename=${encodeURIComponent(filename)}`;
 
                   const isAudio = media.format === "mp3" || media.quality === "mp3";
+                  const isImage = ["jpg", "png", "gif", "webp"].includes(media.format);
 
                   return (
                     <a
@@ -452,12 +456,16 @@ export default function DownloaderForm({
                           ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
                           : isAudio
                           ? "bg-purple-900/40 border border-purple-700/60 text-purple-200 hover:bg-purple-900/60"
+                          : isImage
+                          ? "bg-emerald-950/40 border border-emerald-700/60 text-emerald-200 hover:bg-emerald-900/60"
                           : "bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-750 hover:text-white"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         {isAudio ? (
                           <Music className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                        ) : isImage ? (
+                          <ImageIcon className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
                         ) : (
                           <Video className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
                         )}

@@ -804,6 +804,107 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
   return null;
 }
 
+// 6. REAL DEVIANTART EXTRACTOR (100% Serverless Cloud)
+async function extractDeviantArt(url: string): Promise<VideoExtractionResult | null> {
+  try {
+    // 1. DeviantArt OEmbed API
+    const oembedUrl = `https://backend.deviantart.com/oembed?url=${encodeURIComponent(url)}`;
+    const oembedRes = await fetch(oembedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+
+    let oembed: any = null;
+    if (oembedRes.ok) {
+      oembed = await oembedRes.json();
+    }
+
+    // 2. Fetch HTML for additional OpenGraph metadata
+    let ogTitle = '';
+    let ogImage = '';
+    let ogVideo = '';
+    let author = '';
+
+    try {
+      const htmlRes = await fetch(url, {
+        headers: {
+          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+        },
+      });
+      if (htmlRes.ok) {
+        const html = await htmlRes.text();
+        ogTitle = html.match(/property="og:title"\s+content="([^"]+)"/i)?.[1] || '';
+        ogImage = html.match(/property="og:image"\s+content="([^"]+)"/i)?.[1] || '';
+        ogVideo = html.match(/property="og:video(:url)?"\s+content="([^"]+)"/i)?.[2] || '';
+        const authorMatch = html.match(/name="author"\s+content="([^"]+)"/i)?.[1];
+        if (authorMatch) author = authorMatch;
+      }
+    } catch {}
+
+    const title =
+      oembed?.title ||
+      ogTitle.replace(/ by [^|]+ on DeviantArt$/i, '').trim() ||
+      'DeviantArt Artwork';
+    const authorName = oembed?.author_name || author || 'DeviantArt Artist';
+    const mainImageUrl = oembed?.url || ogImage;
+
+    if (!mainImageUrl && !ogVideo) {
+      return null;
+    }
+
+    const medias: DownloadMedia[] = [];
+
+    // Animation video (if present)
+    if (ogVideo) {
+      medias.push({
+        quality: 'Video Animation (MP4)',
+        format: 'mp4',
+        url: ogVideo,
+        label: 'Download Animation Video (MP4)',
+      });
+    }
+
+    // Main Full-Resolution Image
+    if (mainImageUrl) {
+      const ext = mainImageUrl.includes('.png')
+        ? 'png'
+        : mainImageUrl.includes('.gif')
+        ? 'gif'
+        : 'jpg';
+      const width = oembed?.width ? `${oembed.width}x${oembed.height}` : 'Original Resolution';
+      medias.push({
+        quality: width,
+        format: ext,
+        url: mainImageUrl,
+        label: `Download Full Resolution (${width})`,
+      });
+    }
+
+    // Standard / Thumbnail Resolution
+    if (oembed?.thumbnail_url && oembed.thumbnail_url !== mainImageUrl) {
+      medias.push({
+        quality: `${oembed.thumbnail_width || 300}x${oembed.thumbnail_height || 300}`,
+        format: 'jpg',
+        url: oembed.thumbnail_url,
+        label: `Download Standard Resolution (${oembed.thumbnail_width || 300}px)`,
+      });
+    }
+
+    return {
+      success: true,
+      platform: 'deviantart',
+      title,
+      author: authorName,
+      thumbnail: oembed?.thumbnail_url || mainImageUrl,
+      medias,
+    };
+  } catch (err) {
+    console.warn('DeviantArt extractor error:', err);
+    return null;
+  }
+}
+
 export async function extractVideo(url: string): Promise<VideoExtractionResult> {
   const platform = detectPlatform(url);
 
@@ -851,6 +952,19 @@ export async function extractVideo(url: string): Promise<VideoExtractionResult> 
       title: '',
       medias: [],
       error: 'Instagram has restricted unauthenticated access to this post. Please ensure the account is public, or check back shortly.',
+    };
+  }
+
+  // 6. DeviantArt
+  if (platform === 'deviantart') {
+    const da = await extractDeviantArt(url);
+    if (da) return da;
+    return {
+      success: false,
+      platform: 'deviantart',
+      title: '',
+      medias: [],
+      error: 'Unable to extract DeviantArt artwork. Please ensure the deviation is public and accessible.',
     };
   }
 
