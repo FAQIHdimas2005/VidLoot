@@ -5,6 +5,7 @@ export type PlatformType =
   | 'facebook'
   | 'youtube'
   | 'deviantart'
+  | 'niconico'
   | 'unknown';
 
 export interface DownloadMedia {

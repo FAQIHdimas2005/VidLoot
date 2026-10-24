@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '/facebook-downloader',
     '/youtube-downloader',
     '/deviantart-downloader',
+    '/niconico-downloader',
     '/dmca',
     '/privacy-policy',
     '/terms-of-service',

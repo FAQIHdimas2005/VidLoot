@@ -29,5 +29,11 @@ export function detectPlatform(url: string): PlatformType {
   ) {
     return 'deviantart';
   }
+  if (
+    trimmed.includes('nicovideo.jp') ||
+    trimmed.includes('nico.ms')
+  ) {
+    return 'niconico';
+  }
   return 'unknown';
 }

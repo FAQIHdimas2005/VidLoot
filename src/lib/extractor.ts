@@ -1138,6 +1138,122 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
   }
 }
 
+
+// 7. REAL NICO NICO DOUGA EXTRACTOR (DMC / Domand Architecture)
+async function extractNicoNico(url: string): Promise<VideoExtractionResult | null> {
+  const idMatch = url.match(/(?:watch\/|nico\.ms\/)?([a-z]{2}\d+)/i);
+  const nicoId = idMatch ? idMatch[1] : null;
+
+  // Method A: Native yt-dlp Extractor
+  try {
+    const json = await getYtDlpJson(url);
+    if (json && (json.title || json.formats)) {
+      const formats = Array.isArray(json.formats) ? json.formats : [];
+      const videoFormats = formats.filter((f: any) => f.vcodec && f.vcodec !== 'none');
+      const has1080p = videoFormats.some((f: any) => (f.height || 0) >= 1080);
+      const has720p = videoFormats.some((f: any) => (f.height || 0) >= 720);
+
+      const medias: DownloadMedia[] = [];
+      if (has1080p) {
+        medias.push({
+          quality: '1080p',
+          format: 'mp4',
+          url: 'local_merge',
+          label: 'Download Video NicoNico (Full HD 1080p)',
+        });
+      }
+      if (has720p || !has1080p) {
+        medias.push({
+          quality: '720p',
+          format: 'mp4',
+          url: 'local_merge',
+          label: 'Download Video NicoNico (HD 720p)',
+        });
+      }
+      medias.push({
+        quality: '360p',
+        format: 'mp4',
+        url: 'local_merge',
+        label: 'Download Video NicoNico (SD 360p)',
+      });
+      medias.push({
+        quality: 'mp3',
+        format: 'mp3',
+        url: 'local_merge',
+        label: 'Download Audio Sound (MP3)',
+      });
+
+      return {
+        success: true,
+        platform: 'niconico',
+        title: json.title || 'Nico Nico Douga Video',
+        author: json.uploader ? `@${json.uploader}` : undefined,
+        thumbnail: json.thumbnail,
+        duration: json.duration ? formatDuration(json.duration) : undefined,
+        medias,
+      };
+    }
+  } catch (err) {
+    console.warn('yt-dlp NicoNico error:', err);
+  }
+
+  // Method B: Domand Watch API v3 Guest Endpoint
+  if (nicoId) {
+    try {
+      const apiUrl = `https://www.nicovideo.jp/api/watch/v3_guest/${nicoId}?actionTrackId=VidLoot_${Date.now()}`;
+      const res = await fetch(apiUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          'X-Frontend-Id': '6',
+          'X-Frontend-Version': '0',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const v = data?.data?.video;
+        if (v && v.title) {
+          const medias: DownloadMedia[] = [
+            {
+              quality: '720p',
+              format: 'mp4',
+              url: 'local_merge',
+              label: 'Download Video NicoNico (HD 720p)',
+            },
+            {
+              quality: '360p',
+              format: 'mp4',
+              url: 'local_merge',
+              label: 'Download Video NicoNico (SD 360p)',
+            },
+            {
+              quality: 'mp3',
+              format: 'mp3',
+              url: 'local_merge',
+              label: 'Download Audio Sound (MP3)',
+            },
+          ];
+
+          return {
+            success: true,
+            platform: 'niconico',
+            title: v.title || 'Nico Nico Douga Video',
+            author: data?.data?.owner?.nickname ? `@${data.data.owner.nickname}` : undefined,
+            thumbnail: v.thumbnail?.largeUrl || v.thumbnail?.url,
+            duration: v.duration ? formatDuration(v.duration) : undefined,
+            medias,
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('NicoNico API metadata error:', apiErr);
+    }
+  }
+
+  return null;
+}
+
 export async function extractVideo(url: string): Promise<VideoExtractionResult> {
   const platform = detectPlatform(url);
 
@@ -1198,6 +1314,20 @@ export async function extractVideo(url: string): Promise<VideoExtractionResult> 
       title: '',
       medias: [],
       error: 'Unable to extract DeviantArt artwork. Please ensure the deviation is public and accessible.',
+    };
+  }
+
+
+  // 7. Nico Nico Douga
+  if (platform === 'niconico') {
+    const nico = await extractNicoNico(url);
+    if (nico) return nico;
+    return {
+      success: false,
+      platform: 'niconico',
+      title: '',
+      medias: [],
+      error: 'Unable to extract Nico Nico Douga video. Please ensure the video is public and accessible.',
     };
   }
 

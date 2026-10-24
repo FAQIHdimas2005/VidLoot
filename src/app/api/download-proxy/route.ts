@@ -95,6 +95,9 @@ async function ensureLocalMerged(
   } else if (platform === 'facebook') {
     const match = originalUrl.match(/(?:posts|videos|reel|share\/r|watch\/?\?v=)\/(\d+)/);
     idKey = match ? match[1] : 'fb_' + crypto.createHash('md5').update(originalUrl).digest('hex').slice(0, 8);
+  } else if (platform === 'niconico') {
+    const match = originalUrl.match(/(?:watch\/)?([a-z]{2}\d+)/i);
+    idKey = match ? match[1] : 'nico_' + crypto.createHash('md5').update(originalUrl).digest('hex').slice(0, 8);
   } else {
     idKey = `${platform}_` + crypto.createHash('md5').update(originalUrl).digest('hex').slice(0, 8);
   }
@@ -165,6 +168,25 @@ async function ensureLocalMerged(
           args = [
             '-x',
             '--audio-format', 'mp3',
+            '--no-playlist',
+            '--no-exec',
+            '--no-config-locations',
+            ...extraSafeFlags,
+            '-o', outputPath,
+            '--', originalUrl,
+          ];
+        } else if (platform === 'niconico') {
+          let formatSpec = 'bestvideo+bestaudio/best';
+          if (cleanQuality === '1080p') {
+            formatSpec = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+          } else if (cleanQuality === '720p') {
+            formatSpec = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best';
+          } else if (cleanQuality === '360p') {
+            formatSpec = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best';
+          }
+          args = [
+            '-f', formatSpec,
+            '--merge-output-format', 'mp4',
             '--no-playlist',
             '--no-exec',
             '--no-config-locations',
@@ -304,6 +326,9 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     isInternalLocalFlag ||
     targetUrl === 'local_merge' ||
     targetUrl === 'local' ||
+    sourcePlatform === 'niconico' ||
+    targetUrl.includes('nicovideo.jp') ||
+    targetUrl.includes('nico.ms') ||
     targetUrl.includes('youtube.com') ||
     targetUrl.includes('youtu.be');
 

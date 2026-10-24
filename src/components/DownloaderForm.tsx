@@ -185,6 +185,8 @@ export default function DownloaderForm({
         return { label: "YouTube", color: "bg-red-600 text-white border-red-400/30" };
       case "deviantart":
         return { label: "DeviantArt", color: "bg-emerald-950 text-emerald-400 border-emerald-600/40" };
+      case "niconico":
+        return { label: "NicoNico", color: "bg-neutral-900 text-amber-300 border-amber-600/40" };
       default:
         return { label: "All-in-One", color: "bg-slate-800 text-slate-300 border-slate-700" };
     }
@@ -208,7 +210,7 @@ export default function DownloaderForm({
         </h1>
         <p className="mt-3 text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
           {subtitleOverride ||
-            "Paste any public link from TikTok, Instagram Reels, Twitter/X, Facebook, YouTube, or DeviantArt to download clean media."}
+            "Paste any public link from TikTok, Instagram Reels, Twitter/X, Facebook, YouTube, DeviantArt, or NicoNico to download clean media."}
         </p>
       </div>
 
@@ -227,7 +229,7 @@ export default function DownloaderForm({
             type="text"
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
-            placeholder="Paste link here (TikTok, IG, X, FB, YouTube, DeviantArt)..."
+            placeholder="Paste link here (TikTok, IG, X, FB, YouTube, DeviantArt, NicoNico)..."
             className="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-500 px-3 py-2 outline-none"
           />
 

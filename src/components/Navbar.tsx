@@ -14,6 +14,7 @@ export default function Navbar() {
     { href: "/facebook-downloader", label: "Facebook" },
     { href: "/youtube-downloader", label: "YouTube" },
     { href: "/deviantart-downloader", label: "DeviantArt" },
+    { href: "/niconico-downloader", label: "NicoNico" },
   ];
 
   return (
