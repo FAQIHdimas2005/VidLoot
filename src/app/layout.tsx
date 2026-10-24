@@ -50,11 +50,20 @@ export const metadata: Metadata = {
     title: "VidLoot - Free Video Downloader Without Watermark",
     description: "Download TikTok, Instagram Reels, YouTube Shorts, X/Twitter, and Facebook videos in high quality MP4 & MP3.",
     siteName: "VidLoot",
+    images: [
+      {
+        url: "https://vid-loot.vercel.app/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "VidLoot - Free Video Downloader Without Watermark",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "VidLoot - Free Video Downloader Without Watermark",
     description: "Download TikTok, Instagram Reels, YouTube Shorts, X/Twitter, and Facebook videos in high quality MP4 & MP3.",
+    images: ["https://vid-loot.vercel.app/og-image.png"],
   },
   other: {
     monetag: "069c2f1cb6537f23160c0d5a85db8195",
