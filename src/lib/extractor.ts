@@ -840,17 +840,62 @@ function buildDeviantArtMediaUrl(media: any, typeObj: any): string | null {
   return `${media.baseUri}${pathPart}${token ? `?token=${token}` : ''}`;
 }
 
+function getDeviantArtCookie(): string {
+  if (process.env.DEVIANTART_COOKIE) {
+    return process.env.DEVIANTART_COOKIE.trim();
+  }
+  try {
+    const specificPath = path.join(process.cwd(), 'bin', 'deviantart_cookies.txt');
+    const generalPath = path.join(process.cwd(), 'bin', 'cookies.txt');
+    const cookiePath = fs.existsSync(specificPath)
+      ? specificPath
+      : fs.existsSync(generalPath)
+      ? generalPath
+      : null;
+
+    if (cookiePath) {
+      const content = fs.readFileSync(cookiePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      const pairs: string[] = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const parts = trimmed.split('\t');
+        if (parts.length >= 7) {
+          const domain = parts[0].toLowerCase();
+          if (domain.includes('deviantart') || cookiePath === specificPath) {
+            pairs.push(`${parts[5]}=${parts[6]}`);
+          }
+        } else if (trimmed.includes('=')) {
+          pairs.push(trimmed);
+        }
+      }
+      if (pairs.length > 0) {
+        return pairs.join('; ');
+      }
+      return content.trim();
+    }
+  } catch {}
+  return '';
+}
+
 // 6. REAL DEVIANTART EXTRACTOR (Videos, GIFs, & Original 4K/5K Artworks)
 async function extractDeviantArt(url: string): Promise<VideoExtractionResult | null> {
   try {
+    const daCookie = getDeviantArtCookie();
+    const reqHeaders: Record<string, string> = {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    };
+    if (daCookie) {
+      reqHeaders['Cookie'] = daCookie;
+    }
+
     // 1. Fetch HTML with Desktop Chrome User-Agent to parse window.__INITIAL_STATE__
     const htmlRes = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
+      headers: reqHeaders,
     });
 
     if (htmlRes.ok) {
@@ -1019,8 +1064,9 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
                 title,
                 author: authorName,
                 medias: [],
-                error:
-                  'Postingan DeviantArt ini dikunci oleh filter Mature Content (Age-Restricted / Login Required) dari server DeviantArt, sehingga file video/gambar aslinya tidak dapat diakses tanpa login akun DeviantArt.',
+                error: daCookie
+                  ? 'Postingan 18+ ini belum dapat diakses. Pastikan akun DeviantArt yang digunakan pada cookie sudah mengaktifkan opsi "Show Mature Content" di pengaturannya.'
+                  : 'Postingan DeviantArt ini dikunci oleh filter Mature Content (18+ / Login Required). Pasang cookie sesi DeviantArt pada DEVIANTART_COOKIE di server untuk membuka akses download konten 18+.',
               };
             }
           }
