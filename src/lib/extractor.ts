@@ -1194,9 +1194,9 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
               title: 'Nico Nico Douga (Region-Locked)',
               medias: [],
               isRegionLocked: true,
-              regionLockReason: reasonCode || 'HIGH_RISK_COUNTRY_VIDEO',
+              regionLockReason: 'Domestic License Only',
               error:
-                'Video ini terkena Region-Lock Jepang (HIGH_RISK_COUNTRY_VIDEO). Niconico membatasi penayangan konten ini khusus untuk penonton di wilayah domestik Jepang.',
+                'This video is region-locked to Japan (Domestic Restriction). Niconico restricts playback of this content strictly to viewers within Japan.',
             };
           }
         } catch {
