@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/icon.svg" width="80" height="80" alt="VidLoot Logo" />
+  <img src="src/app/icon.svg" width="80" height="80" alt="VidLoot Logo" />
 </p>
 
 <h1 align="center">VidLoot — Universal Social Media Video Downloader</h1>

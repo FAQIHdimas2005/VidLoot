@@ -22,6 +22,122 @@ import {
 import { PlatformType, VideoExtractionResult } from "@/lib/types";
 import { detectPlatform } from "@/lib/platform";
 
+/**
+ * Decode common HTML entities into human-readable characters
+ */
+function decodeHtmlEntities(str: string | undefined | null): string {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+    .replace(/&hellip;/g, "…")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#([0-9]+);/g, (_, dec) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10));
+      } catch {
+        return "";
+      }
+    })
+    .trim();
+}
+
+/**
+ * Safely encode URI component without throwing URIError on lone surrogates or malformed UTF-16
+ */
+function safeEncode(str: string | undefined | null): string {
+  if (!str) return "";
+  try {
+    return encodeURIComponent(str);
+  } catch {
+    // Strip lone UTF-16 surrogates
+    const clean = str.replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      ""
+    );
+    try {
+      return encodeURIComponent(clean);
+    } catch {
+      // Fallback: replace non-ASCII with underscore
+      return encodeURIComponent(clean.replace(/[^\x20-\x7E]/g, "_"));
+    }
+  }
+}
+
+/**
+ * Sanitize filename preventing lone surrogates, invalid characters, and Windows naming bugs
+ */
+function sanitizeFilename(
+  title: string | undefined | null,
+  platform: string,
+  format: string,
+  quality?: string
+): string {
+  // 1. Decode HTML entities and normalize unicode
+  let clean = decodeHtmlEntities(title || "").normalize("NFC");
+
+  // 2. Strip embedded URLs to keep filenames clean (e.g. "Follow @user Link: https://x.com/..." -> "Follow @user")
+  clean = clean
+    .replace(/https?:\/\/[^\s]+/gi, "")
+    .replace(/\b(link|source)\s*:\s*/gi, "")
+    .trim();
+
+  // 3. Strip lone surrogates
+  clean = clean.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    ""
+  );
+
+  // 4. Remove Windows / file system illegal characters: / \ ? % * : | " < > and control chars
+  clean = clean
+    .replace(/[/\\?%*:|"<>]/g, "")
+    .replace(/[\x00-\x1F\x7F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 5. Strip leading and trailing dots
+  clean = clean.replace(/^\.+|\.+$/g, "").trim();
+
+  // 6. Safe truncation using code points (Array.from prevents cutting surrogate pairs in half)
+  if (Array.from(clean).length > 70) {
+    clean = Array.from(clean).slice(0, 70).join("").trim();
+  }
+
+  // 7. Clean any newly formed trailing/leading dots or lone surrogates
+  clean = clean
+    .replace(/^\.+|\.+$/g, "")
+    .replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      ""
+    )
+    .trim();
+
+  // 8. Fallback if no letters or numbers
+  const hasLettersOrNumbers = /[a-zA-Z0-9\p{L}\p{N}]/u.test(clean);
+  const baseTitle =
+    clean && hasLettersOrNumbers
+      ? clean
+      : `VidLoot_${platform}_${Date.now().toString().slice(-4)}`;
+
+  // 9. Append photo index suffix if quality specifies "Photo N" so album items have distinct, clean filenames
+  const photoMatch = quality?.match(/Photo\s+(\d+)/i);
+  const suffix = photoMatch ? `_Photo_${photoMatch[1]}` : "";
+
+  const cleanFormat = (format || "mp4").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "mp4";
+  return `${baseTitle}${suffix}.${cleanFormat}`;
+}
+
 interface DownloaderFormProps {
   initialPlatform?: PlatformType;
   titleOverride?: string;
@@ -177,10 +293,12 @@ export default function DownloaderForm({
       setThumbError(false);
       setShowAdModal(false);
       setPendingResult(null);
-      // Smooth scroll to results
+      // Smooth scroll gently so the search bar stays visible and doesn't get pushed offscreen
       setTimeout(() => {
         const el = document.getElementById("results-section");
-        if (el) el.scrollIntoView({ behavior: "smooth" });
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
       }, 100);
     }
   };
@@ -469,146 +587,184 @@ export default function DownloaderForm({
       )}
 
       {/* RESULTS CARD (UNLOCKED) */}
-      {result && result.success && (
-        <div
-          id="results-section"
-          className="mt-8 p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300"
-        >
-          <div className="flex flex-col md:flex-row gap-5 items-start">
-            {/* Thumbnail Preview */}
-            <div className="relative w-full md:w-56 h-40 sm:h-48 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shrink-0 group">
-              {result.thumbnail && !thumbError ? (
-                <img
-                  src={
-                    result.platform === "instagram"
-                      ? `/api/download-proxy?url=${encodeURIComponent(result.thumbnail)}`
-                      : result.thumbnail
-                  }
-                  alt={result.title || "Video Preview"}
-                  referrerPolicy="no-referrer"
-                  onError={() => setThumbError(true)}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 text-slate-400 p-4 text-center">
-                  <Video className="w-8 h-8 text-blue-400/80 mb-2" />
-                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
-                    {result.platform} Preview
+      {result && result.success && (() => {
+        const hasVideo = result.medias.some(
+          (m) => m.type === "video" || m.format === "mp4" || m.format === "webm"
+        );
+        // Only multi-photo carousels (3+ album slides like Instagram/TikTok/X photo sets) use a 2-column grid
+        const isPhotoAlbum =
+          !hasVideo &&
+          result.medias.length > 2 &&
+          result.medias.every(
+            (m) =>
+              m.quality?.toLowerCase().startsWith("photo") ||
+              Boolean(m.label?.toLowerCase().includes("photo #"))
+          );
+        const cleanTitle = decodeHtmlEntities(result.title);
+        const thumbUrl =
+          result.thumbnail &&
+          (result.platform === "instagram" ||
+            result.platform === "facebook" ||
+            result.thumbnail.includes("lookaside.fbsbx.com") ||
+            result.thumbnail.includes("fbsbx.com/lookaside"))
+            ? `/api/download-proxy?url=${safeEncode(result.thumbnail)}`
+            : result.thumbnail;
+
+        return (
+          <div
+            id="results-section"
+            className="mt-8 p-5 sm:p-6 rounded-2xl bg-slate-900 border border-slate-700/80 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            <div className="flex flex-col md:flex-row gap-5 items-start">
+              {/* Thumbnail Preview with ambient blur container */}
+              <div className="relative w-full md:w-56 lg:w-64 min-h-[190px] md:min-h-[220px] md:self-stretch rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shrink-0 group flex items-center justify-center">
+                {thumbUrl && !thumbError ? (
+                  <>
+                    {/* Blurred background image for portrait/letterbox photos */}
+                    <img
+                      src={thumbUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 scale-125 pointer-events-none"
+                    />
+                    {/* Crisp foreground media */}
+                    <img
+                      src={thumbUrl}
+                      alt={cleanTitle || (hasVideo ? "Video Preview" : "Photo Preview")}
+                      referrerPolicy="no-referrer"
+                      onError={() => setThumbError(true)}
+                      className="relative z-10 max-w-full max-h-72 md:max-h-80 object-contain group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </>
+                ) : (
+                  <div className="w-full h-full min-h-[180px] flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 text-slate-400 p-4 text-center">
+                    {hasVideo ? (
+                      <Video className="w-8 h-8 text-blue-400/80 mb-2" />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-emerald-400/80 mb-2" />
+                    )}
+                    <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                      {result.platform} Preview
+                    </span>
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/75 backdrop-blur-sm text-white z-20">
+                  {result.platform}
+                </div>
+                {result.duration && (
+                  <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/75 backdrop-blur-sm text-white z-20">
+                    {result.duration}
+                  </div>
+                )}
+              </div>
+
+              {/* Video Details & Download Buttons */}
+              <div className="flex-1 w-full space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                    Ready to Download
                   </span>
                 </div>
-              )}
-              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-black/75 backdrop-blur-sm text-white">
-                {result.platform}
-              </div>
-              {result.duration && (
-                <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-black/75 backdrop-blur-sm text-white">
-                  {result.duration}
+
+                <h2 className="text-base sm:text-lg font-bold text-white line-clamp-2">
+                  {cleanTitle || (hasVideo ? "Video Successfully Extracted" : "Photo Successfully Extracted")}
+                </h2>
+
+                {result.author && (
+                  <p className="text-xs text-slate-400">
+                    Creator: <span className="text-slate-200 font-medium">{result.author}</span>
+                  </p>
+                )}
+
+                {/* Download Buttons List / Grid */}
+                <div className={`pt-2 ${isPhotoAlbum ? "grid grid-cols-1 sm:grid-cols-2 gap-2.5" : "space-y-2"}`}>
+                  {result.medias.map((media, idx) => {
+                    const filename = sanitizeFilename(
+                      result.title,
+                      result.platform,
+                      media.format,
+                      media.quality
+                    );
+
+                    const proxyUrl = `/api/download-proxy?url=${safeEncode(
+                      media.url
+                    )}&origUrl=${safeEncode(url)}&platform=${safeEncode(
+                      result.platform
+                    )}&quality=${safeEncode(
+                      media.quality || 'default'
+                    )}&filename=${safeEncode(filename)}`;
+
+                    const isAudio = media.type === "audio" || media.format === "mp3" || media.quality === "mp3";
+                    const isImage = media.type === "image" || ["jpg", "png", "gif", "webp"].includes(media.format);
+
+                    // For multi-photo albums in a 2-column grid, use concise label so it fits comfortably
+                    let buttonLabel = media.label || `Download ${media.quality}`;
+                    if (isPhotoAlbum) {
+                      buttonLabel = buttonLabel
+                        .replace(/^Download\s+(Instagram|TikTok|X|Twitter)\s+/i, "Download ")
+                        .trim();
+                    }
+
+                    return (
+                      <a
+                        key={idx}
+                        href={proxyUrl}
+                        download={filename}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md group ${
+                          isPhotoAlbum
+                            ? "bg-gradient-to-r from-emerald-600/90 to-teal-600/90 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/10 border border-emerald-400/20 active:scale-[0.98]"
+                            : idx === 0
+                            ? isImage
+                              ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20"
+                              : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
+                            : isAudio
+                            ? "bg-purple-900/40 border border-purple-700/60 text-purple-200 hover:bg-purple-900/60"
+                            : isImage
+                            ? "bg-emerald-950/40 border border-emerald-700/60 text-emerald-200 hover:bg-emerald-900/60 hover:text-white"
+                            : "bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-750 hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 mr-2">
+                          {isAudio ? (
+                            <Music className="w-4 h-4 text-purple-400 shrink-0 group-hover:scale-110 transition-transform" />
+                          ) : isImage ? (
+                            <ImageIcon className="w-4 h-4 text-emerald-300 shrink-0 group-hover:scale-110 transition-transform" />
+                          ) : (
+                            <Video className="w-4 h-4 text-blue-400 shrink-0 group-hover:scale-110 transition-transform" />
+                          )}
+                          <span className="truncate">{buttonLabel}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs font-normal opacity-85 shrink-0">
+                          {media.size && <span>{media.size}</span>}
+                          <Download className="w-4 h-4 shrink-0" />
+                        </div>
+                      </a>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
 
-            {/* Video Details & Download Buttons */}
-            <div className="flex-1 w-full space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-full bg-emerald-500/20 text-emerald-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                </span>
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Ready to Download
-                </span>
-              </div>
-
-              <h2 className="text-base sm:text-lg font-bold text-white line-clamp-2">
-                {result.title || "Video Successfully Extracted"}
-              </h2>
-
-              {result.author && (
-                <p className="text-xs text-slate-400">
-                  Creator: <span className="text-slate-200 font-medium">{result.author}</span>
-                </p>
-              )}
-
-              {/* Download Buttons List */}
-              <div className="pt-2 space-y-2">
-                {result.medias.map((media, idx) => {
-                  const rawClean = (result.title || `VidLoot_${result.platform}`)
-                    .replace(/[/\\?%*:|"<>]/g, '')
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .replace(/^\.+|\.+$/g, '')
-                    .trim()
-                    .slice(0, 100);
-
-                  const validTitle =
-                    rawClean && /[a-zA-Z0-9]/.test(rawClean)
-                      ? rawClean
-                      : `VidLoot_${result.platform}_${Date.now().toString().slice(-4)}`;
-
-                  const filename = `${validTitle}.${media.format}`;
-
-                  const proxyUrl = `/api/download-proxy?url=${encodeURIComponent(
-                    media.url
-                  )}&origUrl=${encodeURIComponent(url)}&platform=${encodeURIComponent(
-                    result.platform
-                  )}&quality=${encodeURIComponent(
-                    media.quality || 'default'
-                  )}&filename=${encodeURIComponent(filename)}`;
-
-                  const isAudio = media.format === "mp3" || media.quality === "mp3";
-                  const isImage = ["jpg", "png", "gif", "webp"].includes(media.format);
-
-                  return (
-                    <a
-                      key={idx}
-                      href={proxyUrl}
-                      download={filename}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md group ${
-                        idx === 0
-                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/20"
-                          : isAudio
-                          ? "bg-purple-900/40 border border-purple-700/60 text-purple-200 hover:bg-purple-900/60"
-                          : isImage
-                          ? "bg-emerald-950/40 border border-emerald-700/60 text-emerald-200 hover:bg-emerald-900/60"
-                          : "bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-750 hover:text-white"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {isAudio ? (
-                          <Music className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-                        ) : isImage ? (
-                          <ImageIcon className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-                        ) : (
-                          <Video className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                        )}
-                        <span>{media.label || `Download ${media.quality}`}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-xs font-normal opacity-80">
-                        {media.size && <span>{media.size}</span>}
-                        <Download className="w-4 h-4" />
-                      </div>
-                    </a>
-                  );
-                })}
-              </div>
-
-              {/* Reset / Download another button */}
-              <div className="pt-3">
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Download another video</span>
-                </button>
+                {/* Reset / Download another button */}
+                <div className="pt-3">
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{hasVideo ? "Download another video" : "Download another media"}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

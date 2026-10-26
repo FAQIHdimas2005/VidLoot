@@ -14,31 +14,99 @@ import {
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
+function safeEncode(str: string | undefined | null): string {
+  if (!str) return '';
+  try {
+    return encodeURIComponent(str);
+  } catch {
+    const clean = str.replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      ''
+    );
+    try {
+      return encodeURIComponent(clean);
+    } catch {
+      return encodeURIComponent(clean.replace(/[^\x20-\x7E]/g, '_'));
+    }
+  }
+}
+
+function decodeHtmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&ndash;/g, '-')
+    .replace(/&mdash;/g, '—')
+    .replace(/&hellip;/g, '…')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return '';
+      }
+    })
+    .replace(/&#([0-9]+);/g, (_, dec) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10));
+      } catch {
+        return '';
+      }
+    })
+    .trim();
+}
+
 function getCleanFilename(
   rawName: string,
   ext: string = 'mp4',
   platform: string = 'video'
 ): { ascii: string; utf8: string } {
-  // 1. Strip extension if passed
+  // 1. Strip extension if passed, decode HTML entities and strip raw embedded URLs
   const withoutExt = rawName.replace(/\.[^/.]+$/, '');
+  let sanitized = decodeHtmlEntities(withoutExt)
+    .replace(/https?:\/\/[^\s]+/gi, '')
+    .replace(/\b(link|source)\s*:\s*/gi, '')
+    .trim();
 
   // 2. Remove dangerous Windows characters and trim extra spaces
-  let sanitized = withoutExt
+  sanitized = sanitized
     .replace(/[/\\?%*:|"<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/^\.+|\.+$/g, '') // Strip leading/trailing dots to prevent Windows .mp4 bug
-    .trim()
-    .slice(0, 120);
+    .trim();
+
+  // Strip lone surrogates to prevent URIError
+  sanitized = sanitized.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    ''
+  );
+
+  // Safe truncation using code points (Array.from prevents slicing surrogate pairs in half)
+  if (Array.from(sanitized).length > 80) {
+    sanitized = Array.from(sanitized).slice(0, 80).join('').trim();
+  }
+
+  sanitized = sanitized
+    .replace(/^\.+|\.+$/g, '')
+    .replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      ''
+    )
+    .trim();
 
   // 3. If title is empty or has no alphanumeric characters (e.g. "..."), use fallback
-  if (!sanitized || !/[a-zA-Z0-9]/.test(sanitized)) {
+  const hasLettersOrNumbers = /[a-zA-Z0-9\p{L}\p{N}]/u.test(sanitized);
+  if (!sanitized || !hasLettersOrNumbers) {
     sanitized = `VidLoot_${platform}_${Date.now().toString().slice(-4)}`;
   }
 
   const finalName = `${sanitized}.${ext}`;
   const ascii = finalName.replace(/[^\x20-\x7E]/g, '_');
-  const utf8 = encodeURIComponent(finalName);
+  const utf8 = safeEncode(finalName);
   return { ascii, utf8 };
 }
 
@@ -719,11 +787,11 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       externalEngineBase &&
       (sourcePlatform === 'niconico' || origUrl.includes('nicovideo.jp') || origUrl.includes('nico.ms'))
     ) {
-      const offloadUrl = `${externalEngineBase}/download?url=${encodeURIComponent(
+      const offloadUrl = `${externalEngineBase}/download?url=${safeEncode(
         origUrl
-      )}&platform=${encodeURIComponent(sourcePlatform)}&quality=${encodeURIComponent(
+      )}&platform=${safeEncode(sourcePlatform)}&quality=${safeEncode(
         qualityParam
-      )}&filename=${encodeURIComponent(rawFilename)}`;
+      )}&filename=${safeEncode(rawFilename)}`;
       return NextResponse.redirect(offloadUrl);
     }
 
@@ -864,9 +932,14 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
       }
     }
 
+    const isFbLookaside =
+      resolvedTargetUrl.includes('lookaside.fbsbx.com') ||
+      resolvedTargetUrl.includes('fbsbx.com/lookaside');
+
     const fetchHeaders: Record<string, string> = {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'User-Agent': isFbLookaside
+        ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     };
 
     const clientRange = req.headers.get('range');
@@ -877,10 +950,11 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
     if (isHead) {
       const headRes = await fetch(resolvedTargetUrl, { method: 'HEAD', headers: fetchHeaders });
       const upstreamType = headRes.headers.get('content-type') || '';
-      if (upstreamType.toLowerCase().includes('text/html')) {
+      if (!isFbLookaside && upstreamType.toLowerCase().includes('text/html')) {
         return NextResponse.json({ error: 'Upstream URL is a webpage, not a media file.' }, { status: 502 });
       }
       const isImage =
+        isFbLookaside ||
         upstreamType.startsWith('image/') ||
         Boolean(targetUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) ||
         targetUrl.includes('/thumb?') ||
@@ -911,7 +985,7 @@ async function handleProxy(req: NextRequest, isHead: boolean = false) {
 
     if (!mediaResponse.ok && mediaResponse.status !== 206) {
       console.warn(`Upstream status ${mediaResponse.status}, redirecting to source URL`);
-      if (await isSafeExternalUrl(resolvedTargetUrl)) {
+      if (!isFbLookaside && (await isSafeExternalUrl(resolvedTargetUrl))) {
         return NextResponse.redirect(resolvedTargetUrl);
       }
       return NextResponse.json({ error: 'Upstream media is unavailable.' }, { status: 502 });

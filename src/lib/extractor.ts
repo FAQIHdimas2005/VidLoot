@@ -12,6 +12,20 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
+function safeTruncateTitle(str: string | undefined | null, maxLen: number = 100): string {
+  if (!str) return '';
+  const clean = str.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    ''
+  );
+  const chars = Array.from(clean);
+  const truncated = chars.length > maxLen ? chars.slice(0, maxLen).join('').trim() : clean.trim();
+  return truncated.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    ''
+  );
+}
+
 // Helper: Run local yt-dlp to extract rich metadata
 function getYtDlpJson(url: string, extraArgs: string[] = []): Promise<any | null> {
   return new Promise((resolve) => {
@@ -64,66 +78,98 @@ async function extractTwitter(url: string): Promise<VideoExtractionResult | null
     if (videos.length === 0 && tweet.quote?.media?.videos) {
       videos = tweet.quote.media.videos;
     }
-    if (videos.length === 0) {
+
+    let photos = tweet.media?.photos || [];
+    if (photos.length === 0 && tweet.quote?.media?.photos) {
+      photos = tweet.quote.media.photos;
+    }
+
+    if (videos.length === 0 && photos.length === 0) {
       return {
         success: false,
         platform: 'twitter',
         title: tweet.text || 'X Post',
         medias: [],
-        error: 'No video stream found on this X / tweet post.',
+        error: 'No video or photo stream found on this X / tweet post.',
       };
     }
 
-    const firstVideo = videos[0];
-    const variants = (firstVideo.formats || firstVideo.variants || []).filter(
-      (v: any) => v.url && (v.content_type === 'video/mp4' || v.container === 'mp4' || v.url.endsWith('.mp4'))
-    );
-
-    variants.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
-
     const medias: DownloadMedia[] = [];
 
-    if (variants.length > 0) {
-      medias.push({
-        quality: '1080p',
-        format: 'mp4',
-        url: variants[0].url,
-        label: 'Download Video (HD MP4)',
-      });
+    if (videos.length > 0) {
+      const firstVideo = videos[0];
+      const variants = (firstVideo.formats || firstVideo.variants || []).filter(
+        (v: any) => v.url && (v.content_type === 'video/mp4' || v.container === 'mp4' || v.url.endsWith('.mp4'))
+      );
 
-      if (variants.length > 1) {
+      variants.sort((a: any, b: any) => (b.bitrate || 0) - (a.bitrate || 0));
+
+      if (variants.length > 0) {
+        medias.push({
+          quality: '1080p',
+          format: 'mp4',
+          type: 'video',
+          url: variants[0].url,
+          label: 'Download Video (HD MP4)',
+        });
+
+        if (variants.length > 1) {
+          medias.push({
+            quality: '720p',
+            format: 'mp4',
+            type: 'video',
+            url: variants[variants.length - 1].url,
+            label: 'Download Video (SD MP4)',
+          });
+        }
+      } else if (firstVideo.url) {
         medias.push({
           quality: '720p',
           format: 'mp4',
-          url: variants[variants.length - 1].url,
-          label: 'Download Video (SD MP4)',
+          type: 'video',
+          url: firstVideo.url,
+          label: 'Download Video MP4',
         });
       }
-    } else if (firstVideo.url) {
-      medias.push({
-        quality: '720p',
-        format: 'mp4',
-        url: firstVideo.url,
-        label: 'Download Video MP4',
+
+      if (medias.length > 0) {
+        medias.push({
+          quality: 'mp3',
+          format: 'mp3',
+          type: 'audio',
+          url: medias[0].url,
+          label: 'Download Audio Sound (MP3)',
+        });
+      }
+    } else if (photos.length > 0) {
+      const isSingle = photos.length === 1;
+      photos.forEach((photo: any, idx: number) => {
+        const photoUrl = typeof photo === 'string' ? photo : photo.url;
+        if (!photoUrl) return;
+        medias.push({
+          quality: isSingle ? 'Photo' : `Photo ${idx + 1}`,
+          format: 'jpg',
+          type: 'image',
+          url: photoUrl,
+          label: isSingle
+            ? 'Download X Photo (HD)'
+            : `Download X Photo #${idx + 1} (HD)`,
+        });
       });
     }
 
-    if (medias.length > 0) {
-      medias.push({
-        quality: 'mp3',
-        format: 'mp3',
-        url: medias[0].url,
-        label: 'Download Audio Sound (MP3)',
-      });
-    }
+    const thumbnail =
+      videos[0]?.thumbnail_url ||
+      (photos[0] ? (typeof photos[0] === 'string' ? photos[0] : photos[0].url) : undefined) ||
+      tweet.author?.avatar_url;
 
     return {
       success: true,
       platform: 'twitter',
-      title: tweet.text ? tweet.text.slice(0, 120) : 'Video X (Twitter)',
+      title: tweet.text ? safeTruncateTitle(tweet.text, 100) : (videos.length > 0 ? 'Video X (Twitter)' : 'Photo X (Twitter)'),
       author: `@${tweet.author?.screen_name || 'user'} (${tweet.author?.name || ''})`,
-      thumbnail: firstVideo.thumbnail_url || tweet.author?.avatar_url,
-      duration: firstVideo.duration ? formatDuration(firstVideo.duration) : undefined,
+      thumbnail,
+      duration: videos[0]?.duration ? formatDuration(videos[0].duration) : undefined,
       medias,
     };
   } catch (err) {
@@ -154,10 +200,29 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
         const v = data.data;
         const medias: DownloadMedia[] = [];
 
+        // Check for photo slideshows
+        if (Array.isArray(v.images) && v.images.length > 0) {
+          const isSingle = v.images.length === 1;
+          v.images.forEach((img: any, idx: number) => {
+            const imgUrl = typeof img === 'string' ? img : img.url || img.play;
+            if (!imgUrl) return;
+            medias.push({
+              quality: isSingle ? 'Photo' : `Photo ${idx + 1}`,
+              format: 'jpg',
+              type: 'image',
+              url: imgUrl,
+              label: isSingle
+                ? 'Download TikTok Photo (HD)'
+                : `Download TikTok Photo #${idx + 1} (HD)`,
+            });
+          });
+        }
+
         if (v.hdplay) {
           medias.push({
             quality: '1080p',
             format: 'mp4',
+            type: 'video',
             url: v.hdplay,
             label: 'Download Video MP4 Full HD',
           });
@@ -167,6 +232,7 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
           medias.push({
             quality: '720p',
             format: 'mp4',
+            type: 'video',
             url: v.play,
             label: 'Download Video MP4 Standard',
           });
@@ -176,18 +242,20 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
           medias.push({
             quality: 'mp3',
             format: 'mp3',
+            type: 'audio',
             url: v.music,
             label: 'Download Audio Sound (MP3)',
           });
         }
 
         if (medias.length > 0) {
+          const isPhotoOnly = !v.hdplay && !v.play && Array.isArray(v.images) && v.images.length > 0;
           return {
             success: true,
             platform: 'tiktok',
-            title: v.title || 'Video TikTok',
+            title: v.title || (isPhotoOnly ? 'TikTok Photo Slideshow' : 'Video TikTok'),
             author: `@${v.author?.unique_id || v.author?.nickname || 'creator'}`,
-            thumbnail: v.cover || v.origin_cover,
+            thumbnail: v.cover || v.origin_cover || (medias[0]?.type === 'image' ? medias[0].url : undefined),
             duration: v.duration ? formatDuration(v.duration) : undefined,
             medias,
           };
@@ -203,12 +271,18 @@ async function extractTikTok(url: string): Promise<VideoExtractionResult | null>
     const { snapsave } = await import('snapsave-media-downloader');
     const snapRes = await snapsave(url);
     if (snapRes && snapRes.success && snapRes.data?.media?.length) {
-      const medias: DownloadMedia[] = snapRes.data.media.map((m: any, idx: number) => ({
-        quality: m.resolution || (idx === 0 ? '1080p' : '720p'),
-        format: 'mp4',
-        url: m.url,
-        label: `Download Video MP4 (${m.resolution || 'No Watermark'})`,
-      }));
+      const isImg = (m: any) => m.type === 'image';
+      const medias: DownloadMedia[] = snapRes.data.media
+        .filter((m: any) => Boolean(m.url))
+        .map((m: any, idx: number) => ({
+          quality: m.resolution || (idx === 0 ? '1080p' : '720p'),
+          format: isImg(m) ? 'jpg' : 'mp4',
+          type: isImg(m) ? 'image' : 'video',
+          url: m.url as string,
+          label: isImg(m)
+            ? `Download TikTok Photo (HD)`
+            : `Download Video MP4 (${m.resolution || 'No Watermark'})`,
+        }));
 
       return {
         success: true,
@@ -243,6 +317,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
           medias.push({
             quality: '1080p',
             format: 'mp4',
+            type: 'video',
             url: 'local_merge',
             label: 'Download Video (1080p Full HD)',
           });
@@ -252,6 +327,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
           medias.push({
             quality: '720p',
             format: 'mp4',
+            type: 'video',
             url: 'local_merge',
             label: 'Download Video (720p HD)',
           });
@@ -260,6 +336,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: '360p',
           format: 'mp4',
+          type: 'video',
           url: 'local_merge',
           label: 'Download Video (360p Standard)',
         });
@@ -267,6 +344,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: 'mp3',
           format: 'mp3',
+          type: 'audio',
           url: 'local_merge',
           label: 'Download Audio Sound (MP3)',
         });
@@ -302,6 +380,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
           medias.push({
             quality: q,
             format: 'mp4',
+            type: 'video',
             url: found.url,
             label: `Download Video (${q === '1080p' ? '1080p Full HD' : q === '720p' ? '720p HD' : q})`,
           });
@@ -313,6 +392,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: 'mp3',
           format: 'mp3',
+          type: 'audio',
           url: audioItem.url,
           label: 'Download Audio Sound (MP3)',
         });
@@ -348,6 +428,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         {
           quality: '360p',
           format: 'mp4',
+          type: 'video',
           url: videoProxyUrl,
           label: 'Download Video (360p Standard)',
         },
@@ -357,6 +438,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: 'mp3',
           format: 'mp3',
+          type: 'audio',
           url: audioProxyUrl,
           label: 'Download Audio Sound (MP3)',
         });
@@ -388,6 +470,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: '720p',
           format: 'mp4',
+          type: 'video',
           url: res.video,
           label: 'Download Video (720p HD)',
         });
@@ -396,6 +479,7 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
         medias.push({
           quality: 'mp3',
           format: 'mp3',
+          type: 'audio',
           url: res.audio,
           label: 'Download Audio Sound (MP3)',
         });
@@ -419,13 +503,61 @@ async function extractYouTube(url: string): Promise<VideoExtractionResult | null
 }
 
 // 4. REAL FACEBOOK EXTRACTOR (100% Verified with Real Titles & Resolutions)
+function getFacebookCookie(): string {
+  if (process.env.FACEBOOK_COOKIE) {
+    return process.env.FACEBOOK_COOKIE.trim();
+  }
+  try {
+    const specificPath = path.join(process.cwd(), 'bin', 'facebook_cookies.txt');
+    const generalPath = path.join(process.cwd(), 'bin', 'cookies.txt');
+    const cookiePath = fs.existsSync(specificPath)
+      ? specificPath
+      : fs.existsSync(generalPath)
+      ? generalPath
+      : null;
+
+    if (cookiePath) {
+      const content = fs.readFileSync(cookiePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      const pairs: string[] = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const parts = trimmed.split('\t');
+        if (parts.length >= 7) {
+          const domain = parts[0].toLowerCase();
+          if (domain.includes('facebook') || cookiePath === specificPath) {
+            pairs.push(`${parts[5]}=${parts[6]}`);
+          }
+        }
+      }
+      if (pairs.length > 0) return pairs.join('; ');
+    }
+  } catch (err) {
+    console.warn('Error reading Facebook cookie:', err);
+  }
+  return '';
+}
+
 async function extractFacebook(url: string): Promise<VideoExtractionResult | null> {
   // Method A: yt-dlp metadata (Extracts Real Title, HD & SD, exact duration, <1s local mux)
   try {
-    const json = await getYtDlpJson(url);
+    const specificPath = path.join(process.cwd(), 'bin', 'facebook_cookies.txt');
+    const generalPath = path.join(process.cwd(), 'bin', 'cookies.txt');
+    const cookiePath = fs.existsSync(specificPath)
+      ? specificPath
+      : fs.existsSync(generalPath)
+      ? generalPath
+      : null;
+    const extraArgs: string[] = [];
+    if (cookiePath) {
+      extraArgs.push('--cookies', cookiePath);
+    }
+
+    const json = await getYtDlpJson(url, extraArgs);
     if (json && (json.title || json.formats)) {
       const rawTitle = json.title || json.description || 'Facebook Video';
-      const cleanTitle = rawTitle.split('\n')[0].replace(/\s+/g, ' ').slice(0, 100).trim();
+      const cleanTitle = safeTruncateTitle(rawTitle.split('\n')[0].replace(/\s+/g, ' '), 100);
 
       const formats = (json.formats || []).filter((f: any) => f.vcodec && f.vcodec !== 'none');
       const heights = Array.from(new Set(formats.map((f: any) => f.height).filter(Boolean))).sort((a: any, b: any) => b - a) as number[];
@@ -437,6 +569,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
         medias.push({
           quality: '1080p',
           format: 'mp4',
+          type: 'video',
           url: 'local_merge',
           label: 'Download Video Facebook (1080p Full HD)',
         });
@@ -445,6 +578,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
       medias.push({
         quality: '720p',
         format: 'mp4',
+        type: 'video',
         url: 'local_merge',
         label: 'Download Video Facebook (720p HD)',
       });
@@ -452,6 +586,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
       medias.push({
         quality: '360p',
         format: 'mp4',
+        type: 'video',
         url: 'local_merge',
         label: 'Download Video Facebook (360p SD)',
       });
@@ -459,6 +594,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
       medias.push({
         quality: 'mp3',
         format: 'mp3',
+        type: 'audio',
         url: 'local_merge',
         label: 'Download Audio Sound (MP3)',
       });
@@ -489,6 +625,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
       const medias: DownloadMedia[] = chosenList.map((m: any) => ({
         quality: m.resolution || '720p',
         format: 'mp4',
+        type: 'video',
         url: m.url,
         label: `Download Video Facebook (${m.resolution || 'HD'})`,
       }));
@@ -518,6 +655,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
         medias.push({
           quality: '720p',
           format: 'mp4',
+          type: 'video',
           url: data.HD,
           label: 'Download Video Facebook (HD)',
         });
@@ -526,6 +664,7 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
         medias.push({
           quality: '360p',
           format: 'mp4',
+          type: 'video',
           url: data.Normal_video,
           label: 'Download Video Facebook (SD)',
         });
@@ -541,12 +680,189 @@ async function extractFacebook(url: string): Promise<VideoExtractionResult | nul
     console.warn('Facebook fbdown error:', err);
   }
 
+function extractFacebookCdnUrl(html: string): string | null {
+  if (!html) return null;
+  // Match both unescaped and escaped scontent...fbcdn.net image URLs
+  const cdnRegex = /https?:(?:\/|\\\/|\\u002F)+[a-zA-Z0-9_.-]*scontent[a-zA-Z0-9_.-]*\.fbcdn\.net(?:\/|\\\/|\\u002F)+[^\s"'<>`]+/gi;
+  const matches = html.match(cdnRegex);
+  if (!matches || matches.length === 0) return null;
+
+  const candidates = matches
+    .map((m) =>
+      m
+        .replace(/\\u002F/gi, '/')
+        .replace(/\\\\\//g, '/')
+        .replace(/\\\//g, '/')
+        .replace(/&amp;/g, '&')
+        .replace(/[\\;,."']+$/, '')
+    )
+    .filter((u) => u.startsWith('http'));
+
+  if (candidates.length === 0) return null;
+
+  // Filter out tiny avatars / icons if larger versions are available
+  const highRes = candidates.filter(
+    (u) =>
+      !u.includes('p50x50') &&
+      !u.includes('s50x50') &&
+      !u.includes('p100x100') &&
+      !u.includes('s100x100') &&
+      !u.includes('p160x160') &&
+      !u.includes('s160x160') &&
+      !u.includes('cp0')
+  );
+
+  const pool = highRes.length > 0 ? highRes : candidates;
+
+  const scoreUrl = (u: string): number => {
+    let score = 0;
+    if (u.includes('2048x') || u.includes('x2048')) score += 100;
+    if (u.includes('1080x') || u.includes('x1080')) score += 80;
+    if (u.includes('960x') || u.includes('x960')) score += 60;
+    if (u.includes('720x') || u.includes('x720')) score += 40;
+    if (u.includes('dst-jpg')) score += 30;
+    if (u.includes('t39.30808-6')) score += 25;
+    if (u.includes('t1.6435-9') || u.includes('t1.18169-9')) score += 20;
+    return score;
+  };
+
+  pool.sort((a, b) => scoreUrl(b) - scoreUrl(a));
+  return pool[0] || null;
+}
+
+  // Method D: Open Graph crawler for Facebook photo posts
+  try {
+    const userAgents = [
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'facebookexternalhit/1.1',
+      'Twitterbot/1.0',
+    ];
+
+    const fbCookie = getFacebookCookie();
+
+    for (const ua of userAgents) {
+      try {
+        const headers: Record<string, string> = {
+          'User-Agent': ua,
+        };
+        if (fbCookie) {
+          headers['Cookie'] = fbCookie;
+        }
+
+        const res = await fetch(url, {
+          headers,
+          redirect: 'follow',
+        });
+
+        if (!res.ok) continue;
+        const html = await res.text();
+
+        const ogImageMatch =
+          html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+
+        const rawImageUrl = ogImageMatch ? ogImageMatch[1] : '';
+        let cleanImageUrl = rawImageUrl ? decodeHtmlEntities(rawImageUrl).replace(/&amp;/g, '&') : '';
+
+        // Extract direct CDN URL scontent...fbcdn.net from HTML
+        const directCdnUrl = extractFacebookCdnUrl(html);
+
+        // When og:image is a lookaside URL or when parsing HTML, prioritize direct CDN URL scontent...fbcdn.net
+        const isLookaside =
+          cleanImageUrl.includes('lookaside.fbsbx.com') ||
+          cleanImageUrl.includes('fbsbx.com/lookaside');
+
+        if (directCdnUrl) {
+          cleanImageUrl = directCdnUrl;
+        } else if (isLookaside) {
+          // If direct CDN was not found in HTML regex, try resolving lookaside redirect with crawler UA
+          try {
+            const lookRes = await fetch(cleanImageUrl, {
+              headers: {
+                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+              },
+              redirect: 'follow',
+            });
+            const location = lookRes.headers.get('location');
+            if (location && location.includes('fbcdn.net')) {
+              cleanImageUrl = location;
+            } else if (lookRes.ok) {
+              const lookText = await lookRes.text();
+              const lookCdn = extractFacebookCdnUrl(lookText);
+              if (lookCdn) cleanImageUrl = lookCdn;
+            }
+          } catch {
+            // fallback to original cleanImageUrl
+          }
+        }
+
+        if (!cleanImageUrl.startsWith('http')) continue;
+
+        const ogTitleMatch =
+          html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+        const ogDescMatch =
+          html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
+
+        let title = '';
+        if (ogDescMatch && ogDescMatch[1]) {
+          title = decodeHtmlEntities(ogDescMatch[1]).replace(/[\r\n]+/g, ' ').trim();
+        }
+        if (!title && ogTitleMatch && ogTitleMatch[1]) {
+          title = decodeHtmlEntities(ogTitleMatch[1]).replace(/\s*\|\s*Facebook$/i, '').trim();
+        }
+        if (!title) {
+          title = 'Facebook Photo';
+        }
+
+        let author: string | undefined;
+        if (ogTitleMatch && ogTitleMatch[1]) {
+          const rawTitle = decodeHtmlEntities(ogTitleMatch[1]).replace(/\s*\|\s*Facebook$/i, '').trim();
+          if (rawTitle.includes('|')) {
+            author = rawTitle.split('|')[0].trim();
+          }
+        }
+
+        return {
+          success: true,
+          platform: 'facebook',
+          title: safeTruncateTitle(title, 100) || 'Facebook Photo',
+          author,
+          thumbnail: cleanImageUrl,
+          medias: [
+            {
+              quality: 'HD',
+              format: 'jpg',
+              type: 'image',
+              url: cleanImageUrl,
+              label: 'Download Facebook Photo (HD)',
+            },
+          ],
+        };
+      } catch (uaErr) {
+        console.warn('Facebook OG fetch error with UA:', ua, uaErr);
+      }
+    }
+  } catch (err) {
+    console.warn('Facebook photo extraction error:', err);
+  }
+
   return null;
 }
 
 function decodeHtmlEntities(str: string): string {
   if (!str) return '';
   return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&ndash;/g, '–')
+    .replace(/&mdash;/g, '—')
+    .replace(/&hellip;/g, '…')
+    .replace(/&#x2022;/g, '•')
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
       try {
         return String.fromCodePoint(parseInt(hex, 16));
@@ -561,10 +877,6 @@ function decodeHtmlEntities(str: string): string {
         return '';
       }
     })
-    .replace(/&quot;/g, '"')
-    .replace(/&#x2022;/g, '•')
-    .replace(/&amp;/g, '&')
-    .replace(/&#39;/g, "'")
     .trim();
 }
 
@@ -592,7 +904,7 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
       const caption = matchQuote[1].replace(/[\r\n]+/g, ' ').trim();
       const authorPart = rawTitle.split(/on Instagram:/i)[0].trim();
       return {
-        title: caption.slice(0, 120),
+        title: safeTruncateTitle(caption, 100),
         author: authorPart || undefined,
         thumbnail: cleanImage,
       };
@@ -603,14 +915,14 @@ async function getInstagramMetadata(url: string): Promise<{ title?: string; auth
         const matchDesc = cleanDesc.match(/:\s*["“]([\s\S]*?)["”]?$/);
       if (matchDesc && matchDesc[1]) {
         return {
-          title: matchDesc[1].replace(/[\r\n]+/g, ' ').trim().slice(0, 120),
+          title: safeTruncateTitle(matchDesc[1].replace(/[\r\n]+/g, ' '), 100),
           thumbnail: cleanImage,
         };
       }
     }
 
     return {
-      title: rawTitle ? rawTitle.slice(0, 120) : undefined,
+      title: safeTruncateTitle(rawTitle, 100) || undefined,
       thumbnail: cleanImage,
     };
   } catch (err) {
@@ -635,12 +947,14 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
           {
             quality: '1080p',
             format: 'mp4',
+            type: 'video',
             url: json.url || 'local_merge',
             label: 'Download Video Instagram (Full HD)',
           },
           {
             quality: 'mp3',
             format: 'mp3',
+            type: 'audio',
             url: json.url || 'local_merge',
             label: 'Download Audio Sound (MP3)',
           },
@@ -676,20 +990,52 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
       );
       if (res.ok) {
         const data = await res.json();
-        const medias = (data.medias || []).map((m: any) => ({
-          quality: m.quality || 'Default',
-          format: m.extension === 'mp3' ? 'mp3' : 'mp4',
-          url: m.url,
-          label: `${m.type?.toUpperCase() || 'Video'} (${m.quality || 'Standard'})`,
-        }));
+        const rawMedias = data.medias || [];
+        const isPhotoItem = (m: any) =>
+          m.type === 'image' || ['jpg', 'jpeg', 'png', 'webp'].includes(m.extension?.toLowerCase());
+        const photoItems = rawMedias.filter(isPhotoItem);
+        const hasMultiplePhotos = photoItems.length > 1;
+        let photoCount = 0;
+
+        const medias: DownloadMedia[] = [];
+        for (const m of rawMedias) {
+          if (isPhotoItem(m)) {
+            photoCount++;
+            medias.push({
+              quality: hasMultiplePhotos ? `Photo ${photoCount}` : 'Photo',
+              format: 'jpg',
+              type: 'image',
+              url: m.url,
+              label: hasMultiplePhotos
+                ? `Download Instagram Photo #${photoCount} (HD)`
+                : 'Download Instagram Photo (HD)',
+            });
+          } else if (m.extension === 'mp3' || m.type === 'audio') {
+            medias.push({
+              quality: 'mp3',
+              format: 'mp3',
+              type: 'audio',
+              url: m.url,
+              label: 'Download Audio Sound (MP3)',
+            });
+          } else {
+            medias.push({
+              quality: m.quality || '1080p',
+              format: 'mp4',
+              type: 'video',
+              url: m.url,
+              label: `Download Instagram Video (${m.quality || 'Full HD'})`,
+            });
+          }
+        }
 
         if (medias.length > 0) {
           return {
             success: true,
             platform: 'instagram',
-            title: data.title || 'Instagram Reel',
+            title: data.title || (photoCount > 0 && !medias.some((m) => m.type === 'video') ? 'Instagram Photo' : 'Instagram Reel'),
             author: data.author?.name || undefined,
-            thumbnail: data.thumbnail || undefined,
+            thumbnail: data.thumbnail || (medias[0]?.type === 'image' ? medias[0].url : undefined),
             duration: data.duration || undefined,
             medias,
           };
@@ -703,40 +1049,101 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
   // Method C: snapsave media extraction + Open Graph metadata
   try {
     const { snapsave } = await import('snapsave-media-downloader');
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> => {
+      return Promise.race([
+        promise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+      ]).catch(() => null);
+    };
+
     const [snapRes, meta] = await Promise.all([
-      snapsave(url).catch(() => null),
-      getInstagramMetadata(url).catch(() => null),
+      withTimeout(snapsave(url), 12000),
+      withTimeout(getInstagramMetadata(url), 8000),
     ]);
 
     if (snapRes && snapRes.success && snapRes.data?.media?.length) {
-      const medias: DownloadMedia[] = snapRes.data.media.map((m: any, idx: number) => ({
-        quality: m.resolution || (idx === 0 ? '1080p' : '720p'),
-        format: 'mp4',
-        url: m.url,
-        label: `Download Instagram Video (${m.resolution || 'HD'})`,
-      }));
+      const isImgItem = (m: any) => {
+        if (m.type === 'image') return true;
+        if (m.type === 'video') return false;
+        const u = String(m.url || '').toLowerCase();
+        if (u.includes('.mp4') || u.includes('.webm')) return false;
+        if (u.includes('.jpg') || u.includes('.jpeg') || u.includes('.png') || u.includes('.webp') || u.includes('dst-jpg') || u.includes('/thumb?')) return true;
+        return false;
+      };
 
-      // Add audio option
-      if (medias.length > 0) {
+      const rawMedia = snapRes.data.media;
+      const imageCount = rawMedia.filter(isImgItem).length;
+      let photoIdx = 0;
+      let videoIdx = 0;
+      const medias: DownloadMedia[] = [];
+
+      for (const m of rawMedia) {
+        if (!m.url) continue;
+        if (isImgItem(m)) {
+          photoIdx++;
+          medias.push({
+            quality: imageCount > 1 ? `Photo ${photoIdx}` : 'Photo',
+            format: 'jpg',
+            type: 'image',
+            url: m.url,
+            label: imageCount > 1 ? `Download Instagram Photo #${photoIdx} (HD)` : 'Download Instagram Photo (HD)',
+          });
+        } else {
+          videoIdx++;
+          medias.push({
+            quality: m.resolution || (videoIdx === 1 ? '1080p' : '720p'),
+            format: 'mp4',
+            type: 'video',
+            url: m.url,
+            label: `Download Instagram Video (${m.resolution || 'HD'})`,
+          });
+        }
+      }
+
+      // Add audio option ONLY if an actual video exists in the post
+      const firstVideo = medias.find((m) => m.type === 'video');
+      if (firstVideo) {
         medias.push({
           quality: 'mp3',
           format: 'mp3',
-          url: medias[0].url,
+          type: 'audio',
+          url: firstVideo.url,
           label: 'Download Audio Sound (MP3)',
         });
       }
 
-      const title = meta?.title || snapRes.data.description || 'Instagram Reel';
-      const rawThumbnail = snapRes.data.media[0]?.thumbnail || meta?.thumbnail || snapRes.data.preview;
+      const rawDesc = snapRes.data.description ? decodeHtmlEntities(snapRes.data.description) : undefined;
+      const title = meta?.title || rawDesc || (imageCount > 0 && videoIdx === 0 ? 'Instagram Photo' : 'Instagram Reel');
+      const rawThumbnail = snapRes.data.media[0]?.thumbnail || meta?.thumbnail || (medias[0]?.type === 'image' ? medias[0].url : snapRes.data.preview);
       const thumbnail = rawThumbnail ? rawThumbnail.replace(/&amp;/g, '&') : undefined;
 
+      if (medias.length > 0) {
+        return {
+          success: true,
+          platform: 'instagram',
+          title: title || 'Instagram Post',
+          author: meta?.author || undefined,
+          thumbnail,
+          medias,
+        };
+      }
+    } else if (meta?.thumbnail) {
+      // Direct fallback to Open Graph photo if snapsave returned no items
       return {
         success: true,
         platform: 'instagram',
-        title: title || 'Instagram Reel',
-        author: meta?.author || undefined,
-        thumbnail,
-        medias,
+        title: meta.title || 'Instagram Photo',
+        author: meta.author || undefined,
+        thumbnail: meta.thumbnail,
+        medias: [
+          {
+            quality: 'Photo',
+            format: 'jpg',
+            type: 'image',
+            url: meta.thumbnail,
+            label: 'Download Instagram Photo (HD)',
+          },
+        ],
       };
     }
   } catch (err) {
@@ -756,6 +1163,7 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
         medias.push({
           quality: res.videoQuality || '1080p',
           format: 'mp4',
+          type: 'video',
           url: videoUrl,
           label: `Download Instagram Video (${res.videoQuality || 'Full HD'})`,
         });
@@ -765,6 +1173,7 @@ async function extractInstagram(url: string): Promise<VideoExtractionResult | nu
         medias.push({
           quality: 'mp3',
           format: 'mp3',
+          type: 'audio',
           url: audioUrl || videoUrl,
           label: 'Download Audio Sound (MP3)',
         });
@@ -931,6 +1340,7 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
               medias.push({
                 quality: qualityTag,
                 format: 'mp4',
+                type: 'video',
                 url: v.b,
                 size: formatBytes(v.f),
                 label: `Download Video MP4 — ${qualityTag}`,
@@ -958,6 +1368,7 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
                 medias.push({
                   quality: `${dimStr} (GIF)`,
                   format: 'gif',
+                  type: 'image',
                   url: gifUrl,
                   size: formatBytes(devExt?.originalFile?.filesize),
                   label: `Download Animated GIF (${dimStr})`,
@@ -995,11 +1406,12 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
                 medias.push({
                   quality: dimStr,
                   format: imgExt,
+                  type: 'image',
                   url: bestImgUrl,
                   size: !fullviewType?.c ? formatBytes(devExt?.originalFile?.filesize) : undefined,
                   label: isVideoCover
                     ? `Download Video Cover Image (${dimStr})`
-                    : `Download Full Resolution ${imgExt.toUpperCase()} (${dimStr})`,
+                    : `Download Full Resolution (${dimStr})`,
                 });
               }
 
@@ -1010,6 +1422,7 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
                 medias.push({
                   quality: pDim,
                   format: 'jpg',
+                  type: 'image',
                   url: previewUrl,
                   label: `Download Standard Resolution (${pDim})`,
                 });
@@ -1087,8 +1500,9 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
           {
             quality: dim,
             format: ext,
+            type: 'image',
             url: oembed.url,
-            label: `Download Full Resolution ${ext.toUpperCase()} (${dim})`,
+            label: `Download Full Resolution (${dim})`,
           },
         ];
 
@@ -1100,6 +1514,7 @@ async function extractDeviantArt(url: string): Promise<VideoExtractionResult | n
           medias.push({
             quality: tDim,
             format: 'jpg',
+            type: 'image',
             url: oembed.thumbnail_url,
             label: `Download Standard Resolution (${tDim})`,
           });
@@ -1210,6 +1625,7 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
               medias.push({
                 quality: qTag,
                 format: 'mp4',
+                type: 'video',
                 url: 'local_merge',
                 label: `Download Video NicoNico — ${qTag.toUpperCase()} (${dimStr})`,
               });
@@ -1219,12 +1635,14 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
               {
                 quality: '720p',
                 format: 'mp4',
+                type: 'video',
                 url: 'local_merge',
                 label: 'Download Video NicoNico (HD 720p)',
               },
               {
                 quality: '360p',
                 format: 'mp4',
+                type: 'video',
                 url: 'local_merge',
                 label: 'Download Video NicoNico (SD 360p)',
               }
@@ -1234,6 +1652,7 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
           medias.push({
             quality: 'mp3',
             format: 'mp3',
+            type: 'audio',
             url: 'local_merge',
             label: 'Download Audio Sound (MP3)',
           });
@@ -1268,6 +1687,7 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
         medias.push({
           quality: '1080p',
           format: 'mp4',
+          type: 'video',
           url: 'local_merge',
           label: 'Download Video NicoNico (Full HD 1080p)',
         });
@@ -1276,6 +1696,7 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
         medias.push({
           quality: '720p',
           format: 'mp4',
+          type: 'video',
           url: 'local_merge',
           label: 'Download Video NicoNico (HD 720p)',
         });
@@ -1283,12 +1704,14 @@ async function extractNicoNico(url: string): Promise<VideoExtractionResult | nul
       medias.push({
         quality: '360p',
         format: 'mp4',
+        type: 'video',
         url: 'local_merge',
         label: 'Download Video NicoNico (SD 360p)',
       });
       medias.push({
         quality: 'mp3',
         format: 'mp3',
+        type: 'audio',
         url: 'local_merge',
         label: 'Download Audio Sound (MP3)',
       });

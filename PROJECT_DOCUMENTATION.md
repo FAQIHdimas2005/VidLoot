@@ -50,7 +50,7 @@ Berikut rangkuman fase perjalanan yang telah kita lalui bersama:
 * Memperbaiki bug video YouTube yang sempat blank/hitam (*black screen*) akibat proteksi *googlevideo.com* dengan menyalurkannya lewat streaming proxy internal ber-header attachment langsung.
 
 ### Fase 4: Desain Identitas Brand & Favicon Resmi
-* Mengganti favicon globe default bawaan browser dengan logo resmi VidLoot: **Awan Unduh dengan Gradasi Biru, Indigo, dan Cyan** (`public/icon.svg`, `src/app/icon.svg`, dan `src/app/apple-icon.svg`).
+* Mengganti favicon globe default bawaan browser dengan logo resmi VidLoot: **Awan Unduh dengan Gradasi Biru, Indigo, dan Cyan** (`src/app/icon.svg` dan `src/app/apple-icon.svg`).
 
 ### Fase 5: Monetisasi Nyata (Monetag Integration)
 * Mendaftarkan dan memverifikasi domain `vid-loot.vercel.app` di **Monetag Publisher Network** (status: *Verified*).
